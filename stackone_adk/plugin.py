@@ -83,14 +83,23 @@ class StackOnePlugin(BasePlugin):
         super().__init__(name=plugin_name)
 
         resolved_api_key = api_key if api_key is not None else os.getenv("STACKONE_API_KEY", "")
+        if not resolved_api_key:
+            raise ValueError(
+                "StackOne API key is required. Set the STACKONE_API_KEY environment variable or pass api_key=..."
+            )
         resolved_base_url = base_url or DEFAULT_BASE_URL
 
         # Auto-discover account IDs if none provided
         if not account_id and not account_ids:
-            account_ids = _discover_account_ids(resolved_api_key, resolved_base_url, providers)
-            logger.info(f"Auto-discovered {len(account_ids)} account(s)")
+            try:
+                account_ids = _discover_account_ids(resolved_api_key, resolved_base_url, providers)
+                logger.info(f"Auto-discovered {len(account_ids)} account(s)")
+            except Exception as e:
+                logger.warning(f"Auto-discovery failed: {e}")
+                account_ids = []
 
         self._tools: list[BaseTool] = []
+        self._toolset: StackOneToolSet | None = None
 
         if not account_id and not account_ids:
             logger.warning("No connected accounts found. No tools will be available.")

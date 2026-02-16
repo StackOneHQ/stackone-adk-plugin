@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from stackone_adk.plugin import StackOnePlugin, _discover_account_ids
 from stackone_adk.tools import StackOneAdkTool
 
@@ -204,3 +206,14 @@ class TestStackOnePluginInit:
         plugin = StackOnePlugin(api_key="sk-test")
         assert len(plugin.get_tools()) == 1
         assert plugin.get_tools()[0].name == "good_tool"
+
+    def test_raises_on_missing_api_key(self):
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(ValueError, match="StackOne API key is required"):
+                StackOnePlugin()
+
+    @patch(PLUGIN_PATCH_DISCOVER, side_effect=RuntimeError("connection refused"))
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_graceful_discovery_failure(self, mock_toolset_cls, mock_discover):
+        plugin = StackOnePlugin(api_key="sk-test")
+        assert plugin.get_tools() == []
