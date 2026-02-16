@@ -9,14 +9,9 @@ from __future__ import annotations
 import base64
 import logging
 import os
-from typing import Any
-
 import httpx
-from google.adk.agents.base_agent import BaseAgent
-from google.adk.agents.callback_context import CallbackContext
 from google.adk.plugins import BasePlugin
-from google.adk.tools import BaseTool, ToolContext
-from google.genai import types
+from google.adk.tools import BaseTool
 from stackone_ai import StackOneToolSet
 
 from stackone_adk.tools import StackOneAdkTool
@@ -124,66 +119,3 @@ class StackOnePlugin(BasePlugin):
     def get_tools(self) -> list[BaseTool]:
         """Return pre-converted ADK tools."""
         return self._tools
-
-    async def before_agent_callback(
-        self,
-        *,
-        agent: BaseAgent,
-        callback_context: CallbackContext,
-    ) -> types.Content | None:
-        """Called before the agent starts processing."""
-        return None
-
-    async def after_agent_callback(
-        self,
-        *,
-        agent: BaseAgent,
-        callback_context: CallbackContext,
-    ) -> types.Content | None:
-        """Called after the agent finishes processing."""
-        return None
-
-    async def before_tool_callback(
-        self,
-        *,
-        tool: BaseTool,
-        tool_args: dict[str, Any],
-        tool_context: ToolContext,
-    ) -> dict[str, Any] | None:
-        """Called before a tool is executed."""
-        logger.debug(f"Before tool: {tool.name}")
-        return None
-
-    async def after_tool_callback(
-        self,
-        *,
-        tool: BaseTool,
-        tool_args: dict[str, Any],
-        tool_context: ToolContext,
-        result: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """Called after a tool is executed."""
-        logger.debug(f"After tool: {tool.name}")
-        if isinstance(result, dict) and "error" in result:
-            logger.warning(f"Tool {tool.name} returned error: {result['error']}")
-        return None
-
-    async def on_tool_error_callback(
-        self,
-        *,
-        tool: BaseTool,
-        tool_args: dict[str, Any],
-        tool_context: ToolContext,
-        error: Exception,
-    ) -> dict[str, Any] | None:
-        """Called when a tool raises an uncaught exception."""
-        logger.error(f"Tool {tool.name} raised uncaught exception: {error}")
-        return None
-
-    async def close(self) -> None:
-        """Clean up plugin resources.
-
-        StackOneToolSet is stateless HTTP — each execute() is an
-        independent request — so no cleanup is needed.
-        """
-        logger.debug("StackOnePlugin closed")

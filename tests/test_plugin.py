@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from stackone_adk.plugin import StackOnePlugin, _discover_account_ids
 from stackone_adk.tools import StackOneAdkTool
 
@@ -206,68 +204,3 @@ class TestStackOnePluginInit:
         plugin = StackOnePlugin(api_key="sk-test")
         assert len(plugin.get_tools()) == 1
         assert plugin.get_tools()[0].name == "good_tool"
-
-
-class TestStackOnePluginCallbacks:
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=[])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def _make_plugin(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
-        mock_toolset_cls.return_value = mock_toolset
-        return StackOnePlugin(api_key="sk-test")
-
-    @pytest.mark.asyncio
-    async def test_before_agent_callback_returns_none(self):
-        plugin = self._make_plugin()
-        result = await plugin.before_agent_callback(
-            agent=MagicMock(),
-            callback_context=MagicMock(),
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_after_agent_callback_returns_none(self):
-        plugin = self._make_plugin()
-        result = await plugin.after_agent_callback(
-            agent=MagicMock(),
-            callback_context=MagicMock(),
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_before_tool_callback_returns_none(self):
-        plugin = self._make_plugin()
-        result = await plugin.before_tool_callback(
-            tool=MagicMock(),
-            tool_args={},
-            tool_context=MagicMock(),
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_after_tool_callback_returns_none(self):
-        plugin = self._make_plugin()
-        result = await plugin.after_tool_callback(
-            tool=MagicMock(),
-            tool_args={},
-            tool_context=MagicMock(),
-            result={"data": []},
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_on_tool_error_callback_returns_none(self):
-        plugin = self._make_plugin()
-        result = await plugin.on_tool_error_callback(
-            tool=MagicMock(),
-            tool_args={},
-            tool_context=MagicMock(),
-            error=RuntimeError("test error"),
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_close_is_safe(self):
-        plugin = self._make_plugin()
-        await plugin.close()  # Should not raise
