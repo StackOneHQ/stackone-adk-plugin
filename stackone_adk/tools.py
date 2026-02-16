@@ -45,12 +45,12 @@ class StackOneAdkTool(BaseTool):
                 description=self.description,
             )
 
-        # Build JSON Schema dict — StackOne uses "nullable: false" to mark required fields
+        # Build JSON Schema dict — match SDK logic: fields are required unless explicitly nullable
         schema = self._stackone_tool.parameters.model_dump()
         required = [
             name
             for name, prop in properties.items()
-            if isinstance(prop, dict) and prop.get("nullable") is False
+            if isinstance(prop, dict) and not prop.get("nullable", False)
         ]
         if required:
             schema["required"] = required

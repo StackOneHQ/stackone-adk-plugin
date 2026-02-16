@@ -94,7 +94,7 @@ class TestStackOneAdkTool:
 
         assert set(decl.parameters_json_schema["required"]) == {"a", "b"}
 
-    def test_declaration_nullable_not_set_means_not_required(self):
+    def test_declaration_nullable_not_set_means_required(self):
         mock_tool = _make_mock_tool(
             properties={
                 "field": {"type": "string"},
@@ -103,7 +103,7 @@ class TestStackOneAdkTool:
         adk_tool = StackOneAdkTool(mock_tool)
         decl = adk_tool._get_declaration()
 
-        assert "required" not in decl.parameters_json_schema
+        assert decl.parameters_json_schema["required"] == ["field"]
 
     def test_declaration_passes_raw_json_schema(self):
         """Verify the declaration uses parameters_json_schema (not parameters)."""
