@@ -1,4 +1,4 @@
-"""Tests for StackOne ADK tool adapter and schema conversion."""
+"""Tests for StackOne ADK tool adapter."""
 
 from __future__ import annotations
 
@@ -8,141 +8,10 @@ from unittest.mock import MagicMock
 import pytest
 from google.genai import types
 
-from stackone_adk.tools import (
-    StackOneAdkTool,
-    _convert_parameters_to_schema,
-    _convert_property_to_schema,
-)
-
-# --- Schema conversion tests ---
+from stackone_adk.tools import StackOneAdkTool
 
 
-class TestConvertPropertyToSchema:
-    def test_string_type(self):
-        schema = _convert_property_to_schema({"type": "string", "description": "A name"})
-        assert schema.type == types.Type.STRING
-        assert schema.description == "A name"
-
-    def test_integer_type(self):
-        schema = _convert_property_to_schema({"type": "integer"})
-        assert schema.type == types.Type.INTEGER
-
-    def test_number_type(self):
-        schema = _convert_property_to_schema({"type": "number"})
-        assert schema.type == types.Type.NUMBER
-
-    def test_boolean_type(self):
-        schema = _convert_property_to_schema({"type": "boolean"})
-        assert schema.type == types.Type.BOOLEAN
-
-    def test_array_type_with_items(self):
-        schema = _convert_property_to_schema({
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "A list of tags",
-        })
-        assert schema.type == types.Type.ARRAY
-        assert schema.items.type == types.Type.STRING
-        assert schema.description == "A list of tags"
-
-    def test_object_type_with_properties(self):
-        schema = _convert_property_to_schema({
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "nullable": False},
-                "age": {"type": "integer", "nullable": True},
-            },
-        })
-        assert schema.type == types.Type.OBJECT
-        assert "name" in schema.properties
-        assert "age" in schema.properties
-        assert schema.required == ["name"]
-
-    def test_enum_values(self):
-        schema = _convert_property_to_schema({
-            "type": "string",
-            "enum": ["active", "inactive", "pending"],
-        })
-        assert schema.type == types.Type.STRING
-        assert schema.enum == ["active", "inactive", "pending"]
-
-    def test_nullable_field(self):
-        schema = _convert_property_to_schema({"type": "string", "nullable": True})
-        assert schema.nullable is True
-
-    def test_non_nullable_field(self):
-        schema = _convert_property_to_schema({"type": "string", "nullable": False})
-        assert schema.nullable is False
-
-    def test_unknown_type_defaults_to_string(self):
-        schema = _convert_property_to_schema({"type": "custom_type"})
-        assert schema.type == types.Type.STRING
-
-    def test_missing_type_defaults_to_string(self):
-        schema = _convert_property_to_schema({"description": "No type specified"})
-        assert schema.type == types.Type.STRING
-
-    def test_unknown_fields_ignored(self):
-        schema = _convert_property_to_schema({
-            "type": "string",
-            "anyOf": [{"type": "string"}, {"type": "null"}],
-            "$ref": "#/components/schemas/Foo",
-            "x-custom": "ignored",
-        })
-        assert schema.type == types.Type.STRING
-
-
-class TestConvertParametersToSchema:
-    def test_basic_properties(self):
-        properties = {
-            "name": {"type": "string", "nullable": False},
-            "email": {"type": "string", "nullable": True},
-        }
-        converted, required = _convert_parameters_to_schema(properties)
-        assert "name" in converted
-        assert "email" in converted
-        assert required == ["name"]
-
-    def test_all_required(self):
-        properties = {
-            "a": {"type": "string", "nullable": False},
-            "b": {"type": "integer", "nullable": False},
-        }
-        _, required = _convert_parameters_to_schema(properties)
-        assert set(required) == {"a", "b"}
-
-    def test_none_required(self):
-        properties = {
-            "a": {"type": "string", "nullable": True},
-            "b": {"type": "integer", "nullable": True},
-        }
-        _, required = _convert_parameters_to_schema(properties)
-        assert required == []
-
-    def test_non_dict_property_skipped(self):
-        properties = {
-            "valid": {"type": "string", "nullable": False},
-            "invalid": "not a dict",
-        }
-        converted, required = _convert_parameters_to_schema(properties)
-        assert "valid" in converted
-        assert "invalid" not in converted
-        assert required == ["valid"]
-
-    def test_empty_properties(self):
-        converted, required = _convert_parameters_to_schema({})
-        assert converted == {}
-        assert required == []
-
-    def test_nullable_not_set_means_not_required(self):
-        properties = {
-            "field": {"type": "string"},
-        }
-        _, required = _convert_parameters_to_schema(properties)
-        assert required == []
-
-
-# --- Tool adapter tests ---
+# --- Helper ---
 
 
 def _make_mock_tool(
@@ -156,7 +25,14 @@ def _make_mock_tool(
     tool.description = description
     tool.parameters = MagicMock()
     tool.parameters.properties = properties or {}
+    tool.parameters.model_dump.return_value = {
+        "type": "object",
+        "properties": properties or {},
+    }
     return tool
+
+
+# --- Tool adapter tests ---
 
 
 class TestStackOneAdkTool:
@@ -180,10 +56,10 @@ class TestStackOneAdkTool:
 
         assert decl.name == "calendly_list_events"
         assert decl.description == "List events"
-        assert decl.parameters is not None
-        assert "page_size" in decl.parameters.properties
-        assert "status" in decl.parameters.properties
-        assert decl.parameters.required == ["status"]
+        assert decl.parameters_json_schema is not None
+        assert "page_size" in decl.parameters_json_schema["properties"]
+        assert "status" in decl.parameters_json_schema["properties"]
+        assert decl.parameters_json_schema["required"] == ["status"]
 
     def test_declaration_empty_properties(self):
         mock_tool = _make_mock_tool(properties={})
@@ -192,6 +68,7 @@ class TestStackOneAdkTool:
 
         assert decl.name == "test_tool"
         assert decl.parameters is None
+        assert decl.parameters_json_schema is None
 
     def test_declaration_no_required_fields(self):
         mock_tool = _make_mock_tool(
@@ -202,8 +79,45 @@ class TestStackOneAdkTool:
         adk_tool = StackOneAdkTool(mock_tool)
         decl = adk_tool._get_declaration()
 
-        assert decl.parameters is not None
-        assert not decl.parameters.required
+        assert decl.parameters_json_schema is not None
+        assert "required" not in decl.parameters_json_schema
+
+    def test_declaration_all_required_fields(self):
+        mock_tool = _make_mock_tool(
+            properties={
+                "a": {"type": "string", "nullable": False},
+                "b": {"type": "integer", "nullable": False},
+            },
+        )
+        adk_tool = StackOneAdkTool(mock_tool)
+        decl = adk_tool._get_declaration()
+
+        assert set(decl.parameters_json_schema["required"]) == {"a", "b"}
+
+    def test_declaration_nullable_not_set_means_not_required(self):
+        mock_tool = _make_mock_tool(
+            properties={
+                "field": {"type": "string"},
+            },
+        )
+        adk_tool = StackOneAdkTool(mock_tool)
+        decl = adk_tool._get_declaration()
+
+        assert "required" not in decl.parameters_json_schema
+
+    def test_declaration_passes_raw_json_schema(self):
+        """Verify the declaration uses parameters_json_schema (not parameters)."""
+        mock_tool = _make_mock_tool(
+            properties={
+                "name": {"type": "string", "nullable": False},
+            },
+        )
+        adk_tool = StackOneAdkTool(mock_tool)
+        decl = adk_tool._get_declaration()
+
+        # parameters_json_schema should be set, parameters should not
+        assert decl.parameters_json_schema is not None
+        assert decl.parameters is None
 
     @pytest.mark.asyncio
     async def test_run_async_success(self):
