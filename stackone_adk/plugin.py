@@ -7,6 +7,7 @@ AI Integration Gateway, with lifecycle hooks for monitoring and customization.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import os
 from typing import Any
@@ -18,6 +19,8 @@ from google.adk.plugins import BasePlugin
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types
 from stackone_ai import StackOneToolSet
+from stackone_ai.models import ExecuteConfig, StackOneTool, ToolParameters
+from stackone_ai.utility_tools import ToolIndex
 
 from stackone_adk.tools import StackOneAdkTool
 
@@ -55,6 +58,98 @@ def _discover_account_ids(
     return [a["id"] for a in accounts if a.get("id")]
 
 
+def _build_utility_tools(tools: Any) -> list[StackOneTool]:
+    """Build enhanced utility tools that include parameter schemas in search results.
+
+    The SDK's default tool_search returns {name, description, score} but not the
+    parameter schema. Without the schema, the agent guesses parameter names from
+    the description, which leads to 400 errors on execution.
+
+    This version includes parameters in the search results so the agent can
+    construct correct tool_execute calls.
+    """
+    tool_list = list(tools)
+    tool_map = {t.name: t for t in tool_list}
+    index = ToolIndex(tool_list)
+
+    # --- tool_search (enhanced with parameter schemas) ---
+
+    def execute_search(arguments: str | dict[str, Any] | None = None) -> dict[str, Any]:
+        if isinstance(arguments, str):
+            kwargs = json.loads(arguments)
+        else:
+            kwargs = arguments or {}
+        query = kwargs.get("query", "")
+        limit = int(kwargs["limit"]) if kwargs.get("limit") is not None else 5
+        min_score = float(kwargs["minScore"]) if kwargs.get("minScore") is not None else 0.0
+
+        results = index.search(query, limit, min_score)
+        tools_data = []
+        for r in results:
+            tool = tool_map.get(r.name)
+            entry: dict[str, Any] = {
+                "name": r.name,
+                "description": r.description,
+                "score": r.score,
+            }
+            if tool and tool.parameters.properties:
+                entry["parameters"] = tool.parameters.properties
+            tools_data.append(entry)
+        return {"tools": tools_data}
+
+    class EnhancedToolSearch(StackOneTool):
+        def __init__(self) -> None:
+            super().__init__(
+                description=(
+                    "Searches for relevant tools based on a natural language query. "
+                    "Returns tool names, descriptions, relevance scores, and parameter "
+                    "schemas. Call this first to discover available tools before executing them."
+                ),
+                parameters=ToolParameters(
+                    type="object",
+                    properties={
+                        "query": {
+                            "type": "string",
+                            "description": (
+                                "Natural language query describing what tools you need "
+                                '(e.g., "list events", "get current user")'
+                            ),
+                        },
+                        "limit": {
+                            "type": "number",
+                            "description": "Maximum number of tools to return (default: 5)",
+                            "nullable": True,
+                        },
+                        "minScore": {
+                            "type": "number",
+                            "description": "Minimum relevance score 0-1 (default: 0.0)",
+                            "nullable": True,
+                        },
+                    },
+                ),
+                _execute_config=ExecuteConfig(name="tool_search", method="POST", url="", headers={}),
+                _api_key="",
+                _account_id=None,
+            )
+
+        def execute(
+            self,
+            arguments: str | dict[str, Any] | None = None,
+            *,
+            options: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            return execute_search(arguments)
+
+    # --- tool_execute (reuse SDK's version) ---
+    from stackone_ai.models import Tools as ToolsCollection
+    from stackone_ai.utility_tools import create_tool_execute
+
+    tools_collection = ToolsCollection(tool_list)
+    execute_tool = create_tool_execute(tools_collection)
+
+    return [EnhancedToolSearch(), execute_tool]
+
+
 class StackOnePlugin(BasePlugin):
     """Plugin for connecting ADK agents to 200+ SaaS providers via StackOne.
 
@@ -73,6 +168,9 @@ class StackOnePlugin(BasePlugin):
         providers: Filter by provider names (e.g., ["calendly", "hibob"]).
         actions: Filter by action patterns with globs (e.g., ["*_list_*"]).
         account_ids: Scope tools to specific account IDs.
+        use_utility_tools: When True, expose only tool_search and tool_execute
+            instead of all provider tools. The agent uses tool_search to discover
+            relevant tools via keyword search, then tool_execute to run them.
     """
 
     def __init__(
@@ -84,6 +182,7 @@ class StackOnePlugin(BasePlugin):
         providers: list[str] | None = None,
         actions: list[str] | None = None,
         account_ids: list[str] | None = None,
+        use_utility_tools: bool = False,
     ) -> None:
         super().__init__(name=plugin_name)
 
@@ -113,13 +212,20 @@ class StackOnePlugin(BasePlugin):
             actions=actions,
         )
 
-        for tool in stackone_tools:
-            try:
-                self._tools.append(StackOneAdkTool(tool))
-            except Exception as e:
-                logger.warning(f"Failed to convert tool '{tool.name}': {e}")
-
-        logger.info(f"StackOnePlugin initialized with {len(self._tools)} tools")
+        if use_utility_tools:
+            for tool in _build_utility_tools(stackone_tools):
+                try:
+                    self._tools.append(StackOneAdkTool(tool))
+                except Exception as e:
+                    logger.warning(f"Failed to convert utility tool '{tool.name}': {e}")
+            logger.info(f"StackOnePlugin initialized with {len(self._tools)} utility tools")
+        else:
+            for tool in stackone_tools:
+                try:
+                    self._tools.append(StackOneAdkTool(tool))
+                except Exception as e:
+                    logger.warning(f"Failed to convert tool '{tool.name}': {e}")
+            logger.info(f"StackOnePlugin initialized with {len(self._tools)} tools")
 
     def get_tools(self) -> list[BaseTool]:
         """Return pre-converted ADK tools."""
