@@ -137,33 +137,6 @@ async with InMemoryRunner(app_name="calendly_app", agent=agent) as runner:
 | `providers` | `list[str] \| None` | `None` | Filter by provider names. |
 | `actions` | `list[str] \| None` | `None` | Filter by action patterns (supports globs). |
 | `account_ids` | `list[str] \| None` | `None` | Scope tools to specific account IDs. |
-| `use_utility_tools` | `bool` | `False` | Expose only `tool_search` + `tool_execute` instead of all tools. |
-
-## Dynamic Tool Discovery
-
-When you have many tools across providers, loading them all into the agent's context can be overwhelming. Use `use_utility_tools=True` to give the agent just two meta-tools:
-
-- **`tool_search`** — searches for relevant tools using keyword matching (hybrid BM25 + TF-IDF)
-- **`tool_execute`** — executes a discovered tool by name with parameters
-
-The agent first searches for the right tool, then executes it:
-
-```python
-plugin = StackOnePlugin(
-    use_utility_tools=True,  # 2 tools instead of all provider tools
-)
-
-agent = Agent(
-    model="gemini-3.0-flash",
-    name="assistant",
-    instruction=(
-        "Use tool_search to find relevant tools, then tool_execute to run them."
-    ),
-    tools=plugin.get_tools(),  # [tool_search, tool_execute]
-)
-```
-
-See [`examples/tool_search_agent.py`](examples/tool_search_agent.py) for a full working example.
 
 ## Tool Filtering
 
@@ -229,7 +202,6 @@ See the [`examples/`](examples/) directory:
 |---------|-------------|
 | [`calendly_agent.py`](examples/calendly_agent.py) | Calendly scheduling agent — single provider |
 | [`hris_agent.py`](examples/hris_agent.py) | Multi-provider HRIS agent (HiBob, BambooHR) |
-| [`tool_search_agent.py`](examples/tool_search_agent.py) | Keyword search for tools — discover and execute dynamically |
 
 ## Development
 
