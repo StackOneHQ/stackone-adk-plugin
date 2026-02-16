@@ -52,7 +52,7 @@ def get_current_time(city: str) -> dict:
     return {"status": "success", "city": city, "time": "10:30 AM"}
 
 root_agent = Agent(
-    model="gemini-3.0-flash",
+    model="gemini-2.5-flash",
     name="root_agent",
     tools=[get_current_time],
 )
@@ -72,7 +72,7 @@ async def main():
     plugin = StackOnePlugin()  # reads STACKONE_API_KEY from env
 
     agent = Agent(
-        model="gemini-3.0-flash",
+        model="gemini-2.5-flash",
         name="calendly_agent",  # replace with your agent name
         instruction="You are a scheduling assistant with access to Calendly.",
         tools=plugin.get_tools(),  # instead of: tools=[get_current_time]
@@ -98,7 +98,7 @@ from google.adk.runners import InMemoryRunner
 plugin = StackOnePlugin(providers=["calendly"])
 
 agent = Agent(
-    model="gemini-3.0-flash",
+    model="gemini-2.5-flash",
     name="calendly_agent",  # replace with your agent name
     tools=plugin.get_tools(),
 )
@@ -117,7 +117,7 @@ from google.adk.runners import InMemoryRunner
 plugin = StackOnePlugin(providers=["calendly"])
 
 agent = Agent(
-    model="gemini-3.0-flash",
+    model="gemini-2.5-flash",
     name="calendly_agent",  # replace with your agent name
     tools=plugin.get_tools(),
 )
