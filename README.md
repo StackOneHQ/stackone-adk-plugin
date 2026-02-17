@@ -1,0 +1,242 @@
+# stackone-adk
+
+Google ADK plugin for connecting agents to 200+ SaaS providers via [StackOne](https://stackone.com).
+
+StackOne provides a unified API gateway for HRIS, ATS, CRM, scheduling, and more. This plugin dynamically discovers available tools from StackOne's API and exposes them as native Google ADK tools, no hardcoded tool definitions needed.
+
+## Installation
+
+```bash
+pip install stackone-adk
+```
+
+Or with uv:
+
+```bash
+uv add stackone-adk
+```
+
+## Configuration
+
+### StackOne API Key
+
+Get your API key from the [StackOne Dashboard](https://app.stackone.com).
+
+```bash
+# Environment variable (recommended)
+export STACKONE_API_KEY="your-stackone-api-key"
+```
+
+Or pass directly:
+
+```python
+plugin = StackOnePlugin(api_key="your-stackone-api-key")
+```
+
+### Google API Key
+
+Get your API key from [Google AI Studio](https://aistudio.google.com/apikey). This key is required to access Google's Gemini models.
+
+```bash
+export GOOGLE_API_KEY="your-google-api-key"
+```
+
+## Quick Start
+
+In standard ADK, you define tools as Python functions:
+
+```python
+# Standard ADK — manual tool functions
+def get_current_time(city: str) -> dict:
+    """Returns the current time in a specified city."""
+    return {"status": "success", "city": city, "time": "10:30 AM"}
+
+root_agent = Agent(
+    model="gemini-2.5-flash",
+    name="root_agent",
+    tools=[get_current_time],
+)
+```
+
+With StackOne, tools are discovered dynamically from your connected providers — no manual tool definitions needed:
+
+```python
+import asyncio
+from google.adk.agents import Agent
+from google.adk.apps import App
+from google.adk.runners import InMemoryRunner
+from stackone_adk import StackOnePlugin
+
+async def main():
+    # StackOne replaces manual tool functions
+    plugin = StackOnePlugin()  # reads STACKONE_API_KEY from env
+
+    agent = Agent(
+        model="gemini-2.5-flash",
+        name="calendly_agent",  # replace with your agent name
+        instruction="You are a scheduling assistant with access to Calendly.",
+        tools=plugin.get_tools(),  # instead of: tools=[get_current_time]
+    )
+
+    app = App(name="calendly_app", root_agent=agent, plugins=[plugin])
+
+    async with InMemoryRunner(app=app) as runner:
+        response = await runner.run_debug("What event types do I have?")
+        print(response)
+
+asyncio.run(main())
+```
+
+## Usage Patterns
+
+### With App (Recommended)
+
+```python
+from google.adk.apps import App
+from google.adk.runners import InMemoryRunner
+
+plugin = StackOnePlugin(providers=["calendly"])
+
+agent = Agent(
+    model="gemini-2.5-flash",
+    name="calendly_agent",  # replace with your agent name
+    tools=plugin.get_tools(),
+)
+
+app = App(name="calendly_app", root_agent=agent, plugins=[plugin])
+
+async with InMemoryRunner(app=app) as runner:
+    response = await runner.run_debug("List my events")
+```
+
+### With Runner Directly
+
+```python
+from google.adk.runners import InMemoryRunner
+
+plugin = StackOnePlugin(providers=["calendly"])
+
+agent = Agent(
+    model="gemini-2.5-flash",
+    name="calendly_agent",  # replace with your agent name
+    tools=plugin.get_tools(),
+)
+
+async with InMemoryRunner(app_name="calendly_app", agent=agent) as runner:
+    response = await runner.run_debug("List my events")
+```
+
+## Plugin Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `api_key` | `str \| None` | `None` | StackOne API key. Falls back to `STACKONE_API_KEY` env var. |
+| `account_id` | `str \| None` | `None` | Default account ID for all tools. |
+| `base_url` | `str \| None` | `None` | API URL override (default: `https://api.stackone.com`). |
+| `plugin_name` | `str` | `"stackone_plugin"` | Plugin identifier for ADK. |
+| `providers` | `list[str] \| None` | `None` | Filter by provider names. |
+| `actions` | `list[str] \| None` | `None` | Filter by action patterns (supports globs). |
+| `account_ids` | `list[str] \| None` | `None` | Scope tools to specific account IDs. |
+
+## Tool Filtering
+
+### By Provider
+
+Filter tools to specific SaaS providers:
+
+```python
+# Single provider
+plugin = StackOnePlugin(providers=["calendly"])
+
+# Multiple providers
+plugin = StackOnePlugin(providers=["hibob", "bamboohr"])
+```
+
+### By Action Pattern
+
+Use glob patterns to filter specific actions:
+
+```python
+# Read-only operations
+plugin = StackOnePlugin(actions=["*_list_*", "*_get_*"])
+
+# Specific actions
+plugin = StackOnePlugin(actions=["calendly_list_events", "calendly_get_event_*"])
+```
+
+### By Account ID
+
+Scope tools to specific connected accounts:
+
+```python
+# Multiple accounts
+plugin = StackOnePlugin(account_ids=["acct-hibob-1", "acct-bamboohr-1"])
+```
+
+### Combining Filters
+
+```python
+plugin = StackOnePlugin(
+    providers=["hibob", "bamboohr"],
+    actions=["*_list_*", "*_get_*"],
+    account_ids=["acct-hibob-1", "acct-bamboohr-1"],
+)
+```
+
+## Available Tools
+
+Unlike plugins with a fixed set of tools, StackOne tools are **dynamically discovered** from your connected providers via the StackOne API. The available tools depend on which SaaS providers you have connected in your [StackOne Dashboard](https://app.stackone.com).
+Print discovered tools:
+
+```python
+plugin = StackOnePlugin(providers=["calendly"])
+for tool in plugin.get_tools():
+    print(f"{tool.name}: {tool.description}")
+```
+
+## Examples
+
+See the [`examples/`](examples/) directory:
+
+| Example | Description |
+|---------|-------------|
+| [`calendly_agent.py`](examples/calendly_agent.py) | Calendly scheduling agent — single provider |
+
+## Development
+
+```bash
+git clone https://github.com/StackOneHQ/stackone-adk-plugin.git
+cd stackone-adk-plugin
+pip install -e ".[dev]"
+```
+
+Run tests:
+
+```bash
+pytest
+```
+
+Lint and type check:
+
+```bash
+ruff check stackone_adk/ tests/
+mypy stackone_adk/
+```
+
+Try an example (requires a Calendly account connected in your [StackOne Dashboard](https://app.stackone.com)):
+
+```bash
+export STACKONE_API_KEY="your-stackone-api-key"
+export GOOGLE_API_KEY="your-google-api-key"
+python examples/calendly_agent.py
+```
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).
+
+## References
+
+- [StackOne Documentation](https://docs.stackone.com/)
+- [StackOne Python SDK](https://github.com/StackOneHQ/stackone-ai-python)
+- [Google ADK Documentation](https://google.github.io/adk-docs/)
