@@ -4,12 +4,15 @@ StackOne dynamically discovers tools from your connected SaaS providers,
 so you don't need to define tool functions manually. Just connect your
 Calendly account and the tools are ready to use:
 
-    plugin = StackOnePlugin()
+    plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
     agent = Agent(
         model="gemini-2.5-flash",
         name="calendly_agent",
         tools=plugin.get_tools(),
     )
+
+You can pass an account_id to scope tools to a specific connected account,
+or omit it to let the plugin auto-discover all connected accounts.
 
 Setup:
     1. Get your StackOne API key from https://app.stackone.com
@@ -35,11 +38,13 @@ _genai_logger.addFilter(lambda r: "non-text parts" not in r.getMessage())
 
 
 async def main() -> None:
-    # Discovers tools from your connected providers
+    # Discovers tools from your connected providers.
+    # Pass account_id to scope tools to a specific connected account,
+    # or omit it to auto-discover all connected accounts.
     plugin = StackOnePlugin()
 
-    # Optionally filter by provider or scope to a specific account:
-    # plugin = StackOnePlugin(providers=["calendly"], account_id="your-account-id")
+    # You can also filter by accountID:
+    # plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
 
     tools = plugin.get_tools()
     print(f"Discovered {len(tools)} Calendly tools\n")
