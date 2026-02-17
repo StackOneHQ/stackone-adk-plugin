@@ -201,7 +201,6 @@ See the [`examples/`](examples/) directory:
 | Example | Description |
 |---------|-------------|
 | [`calendly_agent.py`](examples/calendly_agent.py) | Calendly scheduling agent — single provider |
-| [`hris_agent.py`](examples/hris_agent.py) | Multi-provider HRIS agent (HiBob, BambooHR) |
 
 ## Development
 
