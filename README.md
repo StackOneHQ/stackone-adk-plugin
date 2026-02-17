@@ -69,7 +69,7 @@ from stackone_adk import StackOnePlugin
 
 async def main():
     # StackOne replaces manual tool functions
-    # Reads STACKONE_API_KEY from env and auto-discovers connected accounts
+    # Reads STACKONE_API_KEY from env and uses the specified account_id
     plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
 
     agent = Agent(

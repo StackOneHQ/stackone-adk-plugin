@@ -39,11 +39,9 @@ _genai_logger.addFilter(lambda r: "non-text parts" not in r.getMessage())
 
 async def main() -> None:
     # Discovers tools from your connected providers.
-    # Pass account_id to scope tools to a specific connected account,
-    # or omit it to auto-discover all connected accounts.
     plugin = StackOnePlugin()
 
-    # You can also filter by accountID:
+    # You can also pass account_id to scope tools to a specific connected account:
     # plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
 
     tools = plugin.get_tools()
