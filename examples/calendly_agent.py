@@ -53,10 +53,6 @@ async def main() -> None:
             "You are a scheduling assistant powered by StackOne and Calendly. "
             "You help users manage their scheduling by listing event types "
             "and checking scheduled events.\n\n"
-            "When asked about scheduled events, always use the tools directly "
-            "to fetch the data — do not ask the user for URIs or parameters. "
-            "First call calendly_get_current_user to get the user URI, then "
-            "use that URI in subsequent calls.\n\n"
             "Always be helpful and provide clear, organized responses."
         ),
         tools=tools,
