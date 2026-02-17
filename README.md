@@ -69,7 +69,8 @@ from stackone_adk import StackOnePlugin
 
 async def main():
     # StackOne replaces manual tool functions
-    plugin = StackOnePlugin()  # reads STACKONE_API_KEY from env
+    # Reads STACKONE_API_KEY from env and uses the specified account_id
+    plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
 
     agent = Agent(
         model="gemini-2.5-flash",
@@ -95,7 +96,7 @@ asyncio.run(main())
 from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 
-plugin = StackOnePlugin(providers=["calendly"])
+plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
 
 agent = Agent(
     model="gemini-2.5-flash",
@@ -114,7 +115,7 @@ async with InMemoryRunner(app=app) as runner:
 ```python
 from google.adk.runners import InMemoryRunner
 
-plugin = StackOnePlugin(providers=["calendly"])
+plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
 
 agent = Agent(
     model="gemini-2.5-flash",
@@ -140,6 +141,18 @@ async with InMemoryRunner(app_name="calendly_app", agent=agent) as runner:
 
 ## Tool Filtering
 
+### By Account ID (Recommended)
+
+Scope tools to specific connected accounts. This is the recommended approach to ensure your agent only accesses the intended accounts:
+
+```python
+# Single account
+plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
+
+# Multiple accounts
+plugin = StackOnePlugin(account_ids=["acct-hibob-1", "acct-bamboohr-1"])
+```
+
 ### By Provider
 
 Filter tools to specific SaaS providers:
@@ -164,15 +177,6 @@ plugin = StackOnePlugin(actions=["*_list_*", "*_get_*"])
 plugin = StackOnePlugin(actions=["calendly_list_events", "calendly_get_event_*"])
 ```
 
-### By Account ID
-
-Scope tools to specific connected accounts:
-
-```python
-# Multiple accounts
-plugin = StackOnePlugin(account_ids=["acct-hibob-1", "acct-bamboohr-1"])
-```
-
 ### Combining Filters
 
 ```python
@@ -189,7 +193,7 @@ Unlike plugins with a fixed set of tools, StackOne tools are **dynamically disco
 Print discovered tools:
 
 ```python
-plugin = StackOnePlugin(providers=["calendly"])
+plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID", providers=["calendly"])
 for tool in plugin.get_tools():
     print(f"{tool.name}: {tool.description}")
 ```
