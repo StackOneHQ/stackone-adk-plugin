@@ -12,7 +12,7 @@ from typing import Any
 
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types
-from stackone_ai.models import StackOneTool
+from stackone_ai.models import StackOneAPIError, StackOneTool
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,6 @@ class StackOneAdkTool(BaseTool):
                 description=self.description,
             )
 
-        # Build JSON Schema dict — match SDK logic: fields are required unless explicitly nullable
         schema = self._stackone_tool.parameters.model_dump()
         required = [
             name
@@ -78,6 +77,14 @@ class StackOneAdkTool(BaseTool):
             if isinstance(result, dict):
                 return result
             return {"result": result}
+        except StackOneAPIError as exc:
+            logger.error(f"Tool {self.name} API error: {exc}")
+            return {
+                "error": str(exc),
+                "status_code": exc.status_code,
+                "response_body": exc.response_body,
+                "tool_name": self.name,
+            }
         except Exception as e:
             logger.error(f"Tool {self.name} execution failed: {e}")
-            return {"error": str(e)}
+            return {"error": str(e), "tool_name": self.name}
