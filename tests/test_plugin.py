@@ -134,7 +134,7 @@ class TestStackOnePluginInit:
             base_url="https://custom.api.com",
             search=None,
             execute=None,
-            timeout=None,
+            timeout=180.0,
         )
 
     @patch(PLUGIN_PATCH_DISCOVER)
@@ -167,7 +167,9 @@ class TestStackOnePluginInit:
 
         StackOnePlugin(api_key="sk-test", providers=["calendly"])
 
-        mock_discover.assert_called_once_with("sk-test", "https://api.stackone.com", ["calendly"])
+        mock_discover.assert_called_once_with(
+            "sk-test", "https://api.stackone.com", ["calendly"], timeout=180.0
+        )
 
     @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
     @patch(PLUGIN_PATCH_TOOLSET)
@@ -230,7 +232,7 @@ class TestStackOnePluginInit:
         kwargs = mock_toolset_cls.call_args.kwargs
         assert kwargs.get("search") is None
         assert kwargs.get("execute") is None
-        assert kwargs.get("timeout") is None
+        assert kwargs.get("timeout") == 180.0
         mock_toolset._build_tools.assert_not_called()
         mock_toolset.fetch_tools.assert_called_once()
 

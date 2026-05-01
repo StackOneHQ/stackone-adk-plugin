@@ -69,7 +69,7 @@ async def main() -> None:
         mode="search_and_execute",
         account_ids=[account_id],
         search={"method": "auto", "top_k": 10},
-        execute={"account_ids": [account_id], "timeout": 120},
+        execute={"account_ids": [account_id]},
     )
 
     tools = plugin.get_tools()

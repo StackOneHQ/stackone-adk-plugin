@@ -22,6 +22,7 @@ from stackone_adk.tools import StackOneAdkTool
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://api.stackone.com"
+DEFAULT_TIMEOUT = 180.0
 
 try:
     _PLUGIN_VERSION = metadata.version("stackone-adk")
@@ -34,6 +35,7 @@ def _discover_account_ids(
     api_key: str,
     base_url: str,
     providers: list[str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> list[str]:
     """Auto-discover connected account IDs from the StackOne API.
 
@@ -41,6 +43,7 @@ def _discover_account_ids(
         api_key: StackOne API key.
         base_url: StackOne API base URL.
         providers: Optional provider filter (case-insensitive).
+        timeout: HTTP timeout in seconds.
 
     Returns:
         List of account IDs.
@@ -50,7 +53,7 @@ def _discover_account_ids(
         "Authorization": f"Basic {token}",
         "User-Agent": _USER_AGENT,
     }
-    resp = httpx.get(f"{base_url.rstrip('/')}/accounts", headers=headers)
+    resp = httpx.get(f"{base_url.rstrip('/')}/accounts", headers=headers, timeout=timeout)
     resp.raise_for_status()
 
     body = resp.json()
@@ -86,11 +89,15 @@ class StackOnePlugin(BasePlugin):
             and ``tool_execute`` — letting the LLM discover and invoke tools
             on demand. Keeps the model context small when many accounts/connectors
             are linked.
-        search: Search configuration forwarded to ``StackOneToolSet``. Only
-            consulted when ``mode="search_and_execute"``. Defaults to
-            ``{"method": "auto"}`` in that mode.
-        execute: Execution configuration forwarded to ``StackOneToolSet``.
-        timeout: Request timeout in seconds for tool execution HTTP calls.
+        search: Search backend configuration. Forwarded to ``StackOneToolSet``
+            unconditionally; takes effect only when ``mode="search_and_execute"``.
+            Defaults to ``{"method": "auto"}`` in that mode if not specified.
+        execute: Execution configuration (e.g. account scoping). Forwarded to
+            ``StackOneToolSet`` unconditionally; takes effect only when
+            ``mode="search_and_execute"``.
+        timeout: Per-request timeout in seconds for HTTP calls (account
+            discovery and tool execution). Defaults to 180s — increase further
+            for very slow connectors (e.g. some Workday endpoints).
     """
 
     def __init__(
@@ -102,10 +109,11 @@ class StackOnePlugin(BasePlugin):
         providers: list[str] | None = None,
         actions: list[str] | None = None,
         account_ids: list[str] | None = None,
+        *,
         mode: Literal["search_and_execute"] | None = None,
         search: SearchConfig | None = None,
         execute: ExecuteToolsConfig | None = None,
-        timeout: float | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
         super().__init__(name=plugin_name)
 
@@ -118,7 +126,9 @@ class StackOnePlugin(BasePlugin):
 
         if not account_id and not account_ids:
             try:
-                account_ids = _discover_account_ids(resolved_api_key, resolved_base_url, providers)
+                account_ids = _discover_account_ids(
+                    resolved_api_key, resolved_base_url, providers, timeout=timeout
+                )
                 logger.info(f"Auto-discovered {len(account_ids)} account(s)")
             except Exception as e:
                 logger.warning(f"Auto-discovery failed: {e}")
@@ -136,19 +146,20 @@ class StackOnePlugin(BasePlugin):
             effective_search = {"method": "auto"}
 
         self._toolset = StackOneToolSet(
-            api_key=api_key,
+            api_key=resolved_api_key,
             account_id=account_id,
-            base_url=base_url,
+            base_url=resolved_base_url,
             search=effective_search,
             execute=execute,
             timeout=timeout,
         )
 
         if mode == "search_and_execute":
-            if providers or actions:
+            if actions or providers:
                 logger.warning(
-                    "providers/actions filters are ignored in search_and_execute mode "
-                    "(scoping happens via account_ids and the LLM's search query)."
+                    "`actions` is ignored in search_and_execute mode. `providers` may "
+                    "still scope auto-discovery but does not filter the tool catalog "
+                    "(the LLM's search query handles that)."
                 )
             # Use SDK's internal builder until a public API is exposed.
             meta_tools = self._toolset._build_tools(account_ids=account_ids)

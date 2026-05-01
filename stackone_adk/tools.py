@@ -78,7 +78,7 @@ class StackOneAdkTool(BaseTool):
                 return result
             return {"result": result}
         except StackOneAPIError as exc:
-            logger.error(f"Tool {self.name} API error: {exc}")
+            logger.exception("Tool %s API error", self.name)
             return {
                 "error": str(exc),
                 "status_code": exc.status_code,
@@ -86,5 +86,5 @@ class StackOneAdkTool(BaseTool):
                 "tool_name": self.name,
             }
         except Exception as e:
-            logger.error(f"Tool {self.name} execution failed: {e}")
+            logger.exception("Tool %s execution failed", self.name)
             return {"error": str(e), "tool_name": self.name}

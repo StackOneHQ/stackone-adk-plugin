@@ -1,7 +1,8 @@
 """Workday agent using the StackOne plugin for Google ADK.
 
-Default mode — every Workday tool the connected account exposes is registered
-with the agent.
+Default mode — registers a small, scoped set of Workday tools with the agent.
+Workday's full catalog (hundreds of actions) exceeds Gemini's `tools` payload
+cap; for unscoped catalogs use ``search_and_execute_agent.py`` instead.
 
 Setup:
     export STACKONE_API_KEY="..."
@@ -44,13 +45,21 @@ async def main() -> None:
     if not os.getenv("GOOGLE_API_KEY"):
         sys.exit("Set GOOGLE_API_KEY to run this example.")
 
+    # Default mode sends every tool's schema to the LLM. Workday has hundreds
+    # of actions, so we scope to a handful to stay under Gemini's payload cap.
+    # For larger catalogs use search_and_execute_agent.py instead.
     plugin = StackOnePlugin(
         account_id=account_id,
         providers=["workday"],
+        actions=[
+            "workday_list_workers",
+            "workday_get_worker",
+            "workday_list_jobs",
+        ],
     )
 
     tools = plugin.get_tools()
-    print(f"Discovered {len(tools)} Workday tool(s)\n")
+    print(f"Registered {len(tools)} Workday tool(s): {[t.name for t in tools]}\n")
 
     agent = Agent(
         model="gemini-3.1-pro-preview",
