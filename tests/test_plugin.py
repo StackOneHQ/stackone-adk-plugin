@@ -214,6 +214,18 @@ class TestStackOnePluginInit:
             with pytest.raises(ValueError, match="StackOne API key is required"):
                 StackOnePlugin()
 
+    @patch.dict("os.environ", {"STACKONE_API_KEY": "env-key"}, clear=True)
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_resolves_api_key_from_env(self, mock_toolset_cls, mock_discover):
+        mock_toolset_cls.return_value.fetch_tools.return_value = _make_mock_tools(0)
+
+        StackOnePlugin()
+
+        assert mock_discover.call_args.args[0] == "env-key"
+        assert mock_toolset_cls.call_args.kwargs["api_key"] == "env-key"
+        assert mock_toolset_cls.call_args.kwargs["base_url"] == "https://api.stackone.com"
+
     @patch(PLUGIN_PATCH_DISCOVER, side_effect=RuntimeError("connection refused"))
     @patch(PLUGIN_PATCH_TOOLSET)
     def test_graceful_discovery_failure(self, mock_toolset_cls, mock_discover):
