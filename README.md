@@ -238,7 +238,7 @@ See the [`examples/`](examples/) directory:
 
 | Example | Description |
 |---------|-------------|
-| [`workday_agent.py`](examples/workday_agent.py) | Default mode, registers a small set of tools, e.g. Workday |
+| [`workday_agent.py`](examples/workday_agent.py) | Default mode (registers all matching tools); demo uses `actions=[...]` to scope to 3 Workday actions |
 | [`search_and_execute_agent.py`](examples/search_and_execute_agent.py) | LLM-driven discovery via `mode="search_and_execute"`, registers 2 tools |
 
 ## Development
