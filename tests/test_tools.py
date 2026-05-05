@@ -115,7 +115,6 @@ class TestStackOneAdkTool:
         adk_tool = StackOneAdkTool(mock_tool)
         decl = adk_tool._get_declaration()
 
-        # parameters_json_schema should be set, parameters should not
         assert decl.parameters_json_schema is not None
         assert decl.parameters is None
 
@@ -153,6 +152,24 @@ class TestStackOneAdkTool:
 
         assert "error" in result
         assert "API connection failed" in result["error"]
+        assert result["tool_name"] == "test_tool"
+
+    @pytest.mark.asyncio
+    async def test_run_async_preserves_stackone_api_error(self):
+        from stackone_ai.models import StackOneAPIError
+
+        mock_tool = _make_mock_tool(name="workday_list_workers")
+        mock_tool.execute.side_effect = StackOneAPIError(
+            "Forbidden", status_code=403, response_body={"detail": "scope missing"}
+        )
+
+        adk_tool = StackOneAdkTool(mock_tool)
+        result = await adk_tool.run_async(args={}, tool_context=MagicMock())
+
+        assert result["status_code"] == 403
+        assert result["response_body"] == {"detail": "scope missing"}
+        assert result["tool_name"] == "workday_list_workers"
+        assert "Forbidden" in result["error"]
 
     @pytest.mark.asyncio
     async def test_run_async_concurrent_execution(self):

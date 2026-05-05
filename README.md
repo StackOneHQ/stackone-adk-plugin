@@ -52,7 +52,7 @@ def get_current_time(city: str) -> dict:
     return {"status": "success", "city": city, "time": "10:30 AM"}
 
 root_agent = Agent(
-    model="gemini-2.5-flash",
+    model="gemini-3.1-pro-preview",
     name="root_agent",
     tools=[get_current_time],
 )
@@ -70,19 +70,19 @@ from stackone_adk import StackOnePlugin
 async def main():
     # StackOne replaces manual tool functions
     # Reads STACKONE_API_KEY from env and uses the specified account_id
-    plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
+    plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
     agent = Agent(
-        model="gemini-2.5-flash",
-        name="calendly_agent",  # replace with your agent name
-        instruction="You are a scheduling assistant with access to Calendly.",
+        model="gemini-3.1-pro-preview",
+        name="stackone_agent",
+        instruction="You are an HR assistant with access to tools via StackOne.",
         tools=plugin.get_tools(),  # instead of: tools=[get_current_time]
     )
 
-    app = App(name="calendly_app", root_agent=agent, plugins=[plugin])
+    app = App(name="stackone_app", root_agent=agent, plugins=[plugin])
 
     async with InMemoryRunner(app=app) as runner:
-        response = await runner.run_debug("What event types do I have?")
+        response = await runner.run_debug("List the first 3 workers.")
         print(response)
 
 asyncio.run(main())
@@ -96,18 +96,18 @@ asyncio.run(main())
 from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 
-plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 agent = Agent(
-    model="gemini-2.5-flash",
-    name="calendly_agent",  # replace with your agent name
+    model="gemini-3.1-pro-preview",
+    name="stackone_agent",
     tools=plugin.get_tools(),
 )
 
-app = App(name="calendly_app", root_agent=agent, plugins=[plugin])
+app = App(name="stackone_app", root_agent=agent, plugins=[plugin])
 
 async with InMemoryRunner(app=app) as runner:
-    response = await runner.run_debug("List my events")
+    response = await runner.run_debug("List the first 3 workers")
 ```
 
 ### With Runner Directly
@@ -115,16 +115,16 @@ async with InMemoryRunner(app=app) as runner:
 ```python
 from google.adk.runners import InMemoryRunner
 
-plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 agent = Agent(
-    model="gemini-2.5-flash",
-    name="calendly_agent",  # replace with your agent name
+    model="gemini-3.1-pro-preview",
+    name="stackone_agent",
     tools=plugin.get_tools(),
 )
 
-async with InMemoryRunner(app_name="calendly_app", agent=agent) as runner:
-    response = await runner.run_debug("List my events")
+async with InMemoryRunner(app_name="stackone_app", agent=agent) as runner:
+    response = await runner.run_debug("List the first 3 workers")
 ```
 
 ## Plugin Configuration
@@ -138,6 +138,40 @@ async with InMemoryRunner(app_name="calendly_app", agent=agent) as runner:
 | `providers` | `list[str] \| None` | `None` | Filter by provider names. |
 | `actions` | `list[str] \| None` | `None` | Filter by action patterns (supports globs). |
 | `account_ids` | `list[str] \| None` | `None` | Scope tools to specific account IDs. |
+| `mode` | `Literal["search_and_execute"] \| None` | `None` | Tool registration strategy. See [Search and Execute mode](#search-and-execute-mode). |
+| `search` | `SearchConfig \| None` | `None` | Search backend config. Only used when `mode="search_and_execute"`. |
+| `execute` | `ExecuteToolsConfig \| None` | `None` | Execution config (account scoping, timeout). Only used when `mode="search_and_execute"`. |
+| `timeout` | `float \| None` | `None` | Per-request timeout in seconds for tool execution. |
+
+## Search and Execute Mode
+
+By default, `StackOnePlugin` registers every discovered tool with the agent — fine for one or two providers, but the LLM context balloons quickly when many SaaS accounts are connected. With `mode="search_and_execute"`, the plugin registers exactly **two meta tools** (`tool_search` and `tool_execute`) and lets the model discover and invoke real tools on demand:
+
+```python
+from stackone_adk import StackOnePlugin
+
+plugin = StackOnePlugin(
+    mode="search_and_execute",
+    search={"method": "auto", "top_k": 5},
+)
+
+agent = Agent(
+    model="gemini-3.1-pro-preview",
+    name="multi_saas_agent",
+    tools=plugin.get_tools(),
+)
+```
+
+**When to use:** more than ~5 connected providers, or whenever the full tool list would dominate the model's context window.
+
+**How it works:** the LLM calls `tool_search("...")` to get a short list of candidate tools (name, description, parameter schema), then calls `tool_execute(tool_name, parameters)` with the chosen one. Both calls round-trip to StackOne's AI Integration Gateway via the SDK.
+
+**Notes:**
+- `providers` and `actions` filters are ignored in this mode (scoping happens via `account_ids` and the LLM's search query). A warning is logged if you pass them.
+- Search defaults to `{"method": "auto"}` (semantic search with local BM25+TF-IDF fallback). Pass `search={"method": "semantic"}` or `search={"method": "local"}` to force one backend.
+- The connector list embedded in the meta tools' descriptions is captured at plugin construction time. If you link new accounts after the plugin starts, restart the agent to pick them up.
+
+See [`examples/search_and_execute_agent.py`](examples/search_and_execute_agent.py) for a complete runnable example.
 
 ## Tool Filtering
 
@@ -147,7 +181,7 @@ Scope tools to specific connected accounts. This is the recommended approach to 
 
 ```python
 # Single account
-plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 # Multiple accounts
 plugin = StackOnePlugin(account_ids=["acct-hibob-1", "acct-bamboohr-1"])
@@ -159,7 +193,7 @@ Filter tools to specific SaaS providers:
 
 ```python
 # Single provider
-plugin = StackOnePlugin(providers=["calendly"])
+plugin = StackOnePlugin(providers=["workday"])
 
 # Multiple providers
 plugin = StackOnePlugin(providers=["hibob", "bamboohr"])
@@ -174,7 +208,7 @@ Use glob patterns to filter specific actions:
 plugin = StackOnePlugin(actions=["*_list_*", "*_get_*"])
 
 # Specific actions
-plugin = StackOnePlugin(actions=["calendly_list_events", "calendly_get_event_*"])
+plugin = StackOnePlugin(actions=["workday_list_workers", "workday_get_worker*"])
 ```
 
 ### Combining Filters
@@ -193,7 +227,7 @@ Unlike plugins with a fixed set of tools, StackOne tools are **dynamically disco
 Print discovered tools:
 
 ```python
-plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID", providers=["calendly"])
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID", providers=["workday"])
 for tool in plugin.get_tools():
     print(f"{tool.name}: {tool.description}")
 ```
@@ -204,7 +238,8 @@ See the [`examples/`](examples/) directory:
 
 | Example | Description |
 |---------|-------------|
-| [`calendly_agent.py`](examples/calendly_agent.py) | Calendly scheduling agent — single provider |
+| [`workday_agent.py`](examples/workday_agent.py) | Default mode (registers all matching tools); demo uses `actions=[...]` to scope to 3 Workday actions |
+| [`search_and_execute_agent.py`](examples/search_and_execute_agent.py) | LLM-driven discovery via `mode="search_and_execute"`, registers 2 tools |
 
 ## Development
 
@@ -227,12 +262,22 @@ ruff check stackone_adk/ tests/
 mypy stackone_adk/
 ```
 
-Try an example (requires a Calendly account connected in your [StackOne Dashboard](https://app.stackone.com)):
+Try an example (requires at least one provider connected in your [StackOne Dashboard](https://app.stackone.com), e.g. Workday):
 
 ```bash
 export STACKONE_API_KEY="your-stackone-api-key"
+export STACKONE_ACCOUNT_ID="account-id"
 export GOOGLE_API_KEY="your-google-api-key"
-python examples/calendly_agent.py
+uv run examples/workday_agent.py
+```
+
+## Releasing
+
+Bump version in `pyproject.toml` and `stackone_adk/__init__.py`, update `CHANGELOG.md`, then:
+
+```bash
+rm -rf dist/ && uv build && UV_PUBLISH_TOKEN=<pypi-token> uv publish
+git tag stackone-adk-vX.Y.Z && git push origin stackone-adk-vX.Y.Z
 ```
 
 ## License

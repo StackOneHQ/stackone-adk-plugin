@@ -101,9 +101,7 @@ class TestStackOnePluginInit:
 
         plugin = StackOnePlugin(api_key="sk-test")
 
-        # Auto-discovery should have been called
         mock_discover.assert_called_once()
-        # fetch_tools should receive the auto-discovered account_ids
         mock_toolset.fetch_tools.assert_called_once_with(
             account_ids=["acct-auto"], providers=None, actions=None
         )
@@ -129,12 +127,14 @@ class TestStackOnePluginInit:
 
         StackOnePlugin(api_key="sk-test", account_id="acct-123", base_url="https://custom.api.com")
 
-        # Auto-discovery should NOT be called when account_id is provided
         mock_discover.assert_not_called()
         mock_toolset_cls.assert_called_once_with(
             api_key="sk-test",
             account_id="acct-123",
             base_url="https://custom.api.com",
+            search=None,
+            execute=None,
+            timeout=180.0,
         )
 
     @patch(PLUGIN_PATCH_DISCOVER)
@@ -167,7 +167,9 @@ class TestStackOnePluginInit:
 
         StackOnePlugin(api_key="sk-test", providers=["calendly"])
 
-        mock_discover.assert_called_once_with("sk-test", "https://api.stackone.com", ["calendly"])
+        mock_discover.assert_called_once_with(
+            "sk-test", "https://api.stackone.com", ["calendly"], timeout=180.0
+        )
 
     @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
     @patch(PLUGIN_PATCH_TOOLSET)
@@ -212,8 +214,109 @@ class TestStackOnePluginInit:
             with pytest.raises(ValueError, match="StackOne API key is required"):
                 StackOnePlugin()
 
+    @patch.dict("os.environ", {"STACKONE_API_KEY": "env-key"}, clear=True)
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_resolves_api_key_from_env(self, mock_toolset_cls, mock_discover):
+        mock_toolset_cls.return_value.fetch_tools.return_value = _make_mock_tools(0)
+
+        StackOnePlugin()
+
+        assert mock_discover.call_args.args[0] == "env-key"
+        assert mock_toolset_cls.call_args.kwargs["api_key"] == "env-key"
+        assert mock_toolset_cls.call_args.kwargs["base_url"] == "https://api.stackone.com"
+
     @patch(PLUGIN_PATCH_DISCOVER, side_effect=RuntimeError("connection refused"))
     @patch(PLUGIN_PATCH_TOOLSET)
     def test_graceful_discovery_failure(self, mock_toolset_cls, mock_discover):
         plugin = StackOnePlugin(api_key="sk-test")
         assert plugin.get_tools() == []
+
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_default_mode_does_not_pass_search(self, mock_toolset_cls, mock_discover):
+        mock_toolset = MagicMock()
+        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
+        mock_toolset_cls.return_value = mock_toolset
+
+        StackOnePlugin(api_key="sk-test")
+
+        kwargs = mock_toolset_cls.call_args.kwargs
+        assert kwargs.get("search") is None
+        assert kwargs.get("execute") is None
+        assert kwargs.get("timeout") == 180.0
+        mock_toolset._build_tools.assert_not_called()
+        mock_toolset.fetch_tools.assert_called_once()
+
+
+class TestStackOnePluginSearchAndExecute:
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_search_mode_uses_build_tools(self, mock_toolset_cls, mock_discover):
+        mock_toolset = MagicMock()
+        mock_toolset._build_tools.return_value = _make_mock_tools(2)
+        mock_toolset_cls.return_value = mock_toolset
+
+        plugin = StackOnePlugin(api_key="sk-test", mode="search_and_execute")
+
+        kwargs = mock_toolset_cls.call_args.kwargs
+        assert kwargs["search"] == {"method": "auto"}
+        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-1"])
+        mock_toolset.fetch_tools.assert_not_called()
+        tools = plugin.get_tools()
+        assert len(tools) == 2
+        for tool in tools:
+            assert isinstance(tool, StackOneAdkTool)
+
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_search_mode_threads_through_config(self, mock_toolset_cls, mock_discover):
+        mock_toolset = MagicMock()
+        mock_toolset._build_tools.return_value = _make_mock_tools(2)
+        mock_toolset_cls.return_value = mock_toolset
+
+        StackOnePlugin(
+            api_key="sk-test",
+            mode="search_and_execute",
+            search={"method": "semantic", "top_k": 5},
+            execute={"account_ids": ["acct-explicit"], "timeout": 120},
+            timeout=200,
+        )
+
+        kwargs = mock_toolset_cls.call_args.kwargs
+        assert kwargs["search"] == {"method": "semantic", "top_k": 5}
+        assert kwargs["execute"] == {"account_ids": ["acct-explicit"], "timeout": 120}
+        assert kwargs["timeout"] == 200
+
+    @patch(PLUGIN_PATCH_DISCOVER)
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_search_mode_with_explicit_account_ids(self, mock_toolset_cls, mock_discover):
+        mock_toolset = MagicMock()
+        mock_toolset._build_tools.return_value = _make_mock_tools(2)
+        mock_toolset_cls.return_value = mock_toolset
+
+        StackOnePlugin(
+            api_key="sk-test",
+            mode="search_and_execute",
+            account_ids=["acct-a", "acct-b"],
+        )
+
+        mock_discover.assert_not_called()
+        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-a", "acct-b"])
+
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_search_mode_warns_on_provider_filter(self, mock_toolset_cls, mock_discover, caplog):
+        import logging
+
+        mock_toolset = MagicMock()
+        mock_toolset._build_tools.return_value = _make_mock_tools(2)
+        mock_toolset_cls.return_value = mock_toolset
+
+        with caplog.at_level(logging.WARNING, logger="stackone_adk.plugin"):
+            StackOnePlugin(
+                api_key="sk-test",
+                mode="search_and_execute",
+                providers=["calendly"],
+            )
+        assert any("ignored in search_and_execute" in rec.message for rec in caplog.records)
