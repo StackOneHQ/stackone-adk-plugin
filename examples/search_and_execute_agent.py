@@ -77,19 +77,20 @@ async def main() -> None:
 
     agent = Agent(
         model="gemini-3.1-pro-preview",
-        name="workday_agent",
-        description="Workday assistant powered by StackOne search-and-execute.",
+        name="stackone_agent",
+        description="StackOne search-and-execute assistant, discovers and invokes tools on demand.",
         instruction=(
-            "You are a Workday assistant. To answer the user's request, first "
-            "call tool_search with a short natural-language query to find the "
-            "right Workday action, then call tool_execute with the chosen "
-            "tool_name and parameters that match the schema returned by "
-            "tool_search. Keep answers concise and reference real data."
+            "You are an assistant powered by StackOne (e.g. Workday). To "
+            "answer the user's request, first call tool_search with a short "
+            "natural-language query to find the right action, then call "
+            "tool_execute with the chosen tool_name and parameters that match "
+            "the schema returned by tool_search. Keep answers concise and "
+            "reference real data."
         ),
         tools=tools,
     )
 
-    app = App(name="workday_app", root_agent=agent, plugins=[plugin])
+    app = App(name="stackone_app", root_agent=agent, plugins=[plugin])
 
     prompt = "List the first 3 Workday workers and summarise who they are."
     print(f"User: {prompt}")

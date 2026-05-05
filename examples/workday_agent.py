@@ -63,17 +63,18 @@ async def main() -> None:
 
     agent = Agent(
         model="gemini-3.1-pro-preview",
-        name="workday_agent",
-        description="Manages Workday workers, jobs, and HR data via StackOne.",
+        name="stackone_agent",
+        description="Provides access to connected SaaS data via StackOne.",
         instruction=(
-            "You are a Workday assistant powered by StackOne. Use the available "
-            "tools to answer questions about workers and HR records. Keep "
-            "answers concise and reference real data."
+            "You are an HR assistant with access to tools via StackOne "
+            "(e.g. Workday). Use the available tools to answer questions "
+            "about workers and HR records. Keep answers concise and reference "
+            "real data."
         ),
         tools=tools,
     )
 
-    app = App(name="workday_app", root_agent=agent, plugins=[plugin])
+    app = App(name="stackone_app", root_agent=agent, plugins=[plugin])
 
     prompt = "List the first 3 Workday workers and summarise who they are."
     print(f"User: {prompt}")

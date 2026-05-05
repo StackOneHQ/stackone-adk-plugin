@@ -70,16 +70,16 @@ from stackone_adk import StackOnePlugin
 async def main():
     # StackOne replaces manual tool functions
     # Reads STACKONE_API_KEY from env and uses the specified account_id
-    plugin = StackOnePlugin(account_id="YOUR_WORKDAY_ACCOUNT_ID")
+    plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
     agent = Agent(
         model="gemini-3.1-pro-preview",
-        name="workday_agent",
-        instruction="You are an HR assistant with access to Workday.",
+        name="stackone_agent",
+        instruction="You are an HR assistant with access to tools via StackOne.",
         tools=plugin.get_tools(),  # instead of: tools=[get_current_time]
     )
 
-    app = App(name="workday_app", root_agent=agent, plugins=[plugin])
+    app = App(name="stackone_app", root_agent=agent, plugins=[plugin])
 
     async with InMemoryRunner(app=app) as runner:
         response = await runner.run_debug("List the first 3 workers.")
@@ -96,15 +96,15 @@ asyncio.run(main())
 from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
 
-plugin = StackOnePlugin(account_id="YOUR_WORKDAY_ACCOUNT_ID")
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 agent = Agent(
     model="gemini-3.1-pro-preview",
-    name="workday_agent",
+    name="stackone_agent",
     tools=plugin.get_tools(),
 )
 
-app = App(name="workday_app", root_agent=agent, plugins=[plugin])
+app = App(name="stackone_app", root_agent=agent, plugins=[plugin])
 
 async with InMemoryRunner(app=app) as runner:
     response = await runner.run_debug("List the first 3 workers")
@@ -115,15 +115,15 @@ async with InMemoryRunner(app=app) as runner:
 ```python
 from google.adk.runners import InMemoryRunner
 
-plugin = StackOnePlugin(account_id="YOUR_WORKDAY_ACCOUNT_ID")
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 agent = Agent(
     model="gemini-3.1-pro-preview",
-    name="workday_agent",
+    name="stackone_agent",
     tools=plugin.get_tools(),
 )
 
-async with InMemoryRunner(app_name="workday_app", agent=agent) as runner:
+async with InMemoryRunner(app_name="stackone_app", agent=agent) as runner:
     response = await runner.run_debug("List the first 3 workers")
 ```
 
@@ -181,7 +181,7 @@ Scope tools to specific connected accounts. This is the recommended approach to 
 
 ```python
 # Single account
-plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID")
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 # Multiple accounts
 plugin = StackOnePlugin(account_ids=["acct-hibob-1", "acct-bamboohr-1"])
@@ -227,7 +227,7 @@ Unlike plugins with a fixed set of tools, StackOne tools are **dynamically disco
 Print discovered tools:
 
 ```python
-plugin = StackOnePlugin(account_id="YOUR_ACCOUNT_ID", providers=["workday"])
+plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID", providers=["workday"])
 for tool in plugin.get_tools():
     print(f"{tool.name}: {tool.description}")
 ```
@@ -238,8 +238,8 @@ See the [`examples/`](examples/) directory:
 
 | Example | Description |
 |---------|-------------|
-| [`workday_agent.py`](examples/workday_agent.py) | Workday HR agent — default mode, all Workday tools |
-| [`search_and_execute_agent.py`](examples/search_and_execute_agent.py) | Workday agent using `mode="search_and_execute"` (2 meta tools) |
+| [`workday_agent.py`](examples/workday_agent.py) | Default mode, registers a small set of tools, e.g. Workday |
+| [`search_and_execute_agent.py`](examples/search_and_execute_agent.py) | LLM-driven discovery via `mode="search_and_execute"`, registers 2 tools |
 
 ## Development
 
@@ -262,11 +262,11 @@ ruff check stackone_adk/ tests/
 mypy stackone_adk/
 ```
 
-Try an example (requires a Workday account connected in your [StackOne Dashboard](https://app.stackone.com)):
+Try an example (requires at least one provider connected in your [StackOne Dashboard](https://app.stackone.com), e.g. Workday):
 
 ```bash
 export STACKONE_API_KEY="your-stackone-api-key"
-export STACKONE_ACCOUNT_ID="your-workday-account-id"
+export STACKONE_ACCOUNT_ID="account-id"
 export GOOGLE_API_KEY="your-google-api-key"
 uv run examples/workday_agent.py
 ```
