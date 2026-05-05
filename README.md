@@ -271,6 +271,15 @@ export GOOGLE_API_KEY="your-google-api-key"
 uv run examples/workday_agent.py
 ```
 
+## Releasing
+
+Bump version in `pyproject.toml` and `stackone_adk/__init__.py`, update `CHANGELOG.md`, then:
+
+```bash
+rm -rf dist/ && uv build && UV_PUBLISH_TOKEN=<pypi-token> uv publish
+git tag stackone-adk-vX.Y.Z && git push origin stackone-adk-vX.Y.Z
+```
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
