@@ -98,6 +98,9 @@ class StackOnePlugin(BasePlugin):
         timeout: Per-request timeout in seconds for HTTP calls (account
             discovery and tool execution). Defaults to 180s — increase further
             for very slow connectors (e.g. some Workday endpoints).
+        feedback: Whether to expose the global ``submit_feedback`` tool, which the
+            StackOne MCP server provides on every account. Enabled by default in both
+            modes; set to ``False`` to omit it.
     """
 
     def __init__(
@@ -114,6 +117,7 @@ class StackOnePlugin(BasePlugin):
         search: SearchConfig | None = None,
         execute: ExecuteToolsConfig | None = None,
         timeout: float = DEFAULT_TIMEOUT,
+        feedback: bool = True,
     ) -> None:
         super().__init__(name=plugin_name)
 
@@ -162,7 +166,7 @@ class StackOnePlugin(BasePlugin):
                     "(the LLM's search query handles that)."
                 )
             # Use SDK's internal builder until a public API is exposed.
-            meta_tools = self._toolset._build_tools(account_ids=account_ids)
+            meta_tools = self._toolset._build_tools(account_ids=account_ids, feedback=feedback)
             for tool in meta_tools:
                 self._tools.append(StackOneAdkTool(tool))
         else:
@@ -170,6 +174,7 @@ class StackOnePlugin(BasePlugin):
                 account_ids=account_ids,
                 providers=providers,
                 actions=actions,
+                feedback=feedback,
             )
             for tool in stackone_tools:
                 try:
