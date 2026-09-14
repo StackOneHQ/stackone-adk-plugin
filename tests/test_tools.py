@@ -6,10 +6,8 @@ import asyncio
 from unittest.mock import MagicMock
 
 import pytest
-from google.genai import types
 
 from stackone_adk.tools import StackOneAdkTool
-
 
 # --- Helper ---
 

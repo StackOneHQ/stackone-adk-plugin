@@ -262,6 +262,27 @@ ruff check stackone_adk/ tests/
 mypy stackone_adk/
 ```
 
+### Integration smoke test
+
+The test suite replaces `StackOneToolSet` with a `MagicMock`, so it passes regardless of how
+the SDK behaves — it cannot catch an SDK regression. The
+[sdk-conformance](https://github.com/StackOneHQ/sdk-conformance) repo carries a smoke script
+that drives the real SDK through the real plugin against a mock StackOne API, asserting the
+plugin exposes exactly the tool catalog the server listed:
+
+```bash
+git clone git@github.com:StackOneHQ/sdk-conformance.git
+cd sdk-conformance && pnpm install
+./scripts/run_smoke.sh adk
+```
+
+It expects `stackone-adk-plugin` and `stackone-ai-python` checked out alongside it; override
+with `ADK=` and `SDK_PY=`.
+
+This is not wired into CI because `sdk-conformance` is a private repository and this repo has
+no credential configured to clone it. Wiring it up needs a deploy key or PAT secret added
+here first.
+
 Try an example (requires at least one provider connected in your [StackOne Dashboard](https://app.stackone.com), e.g. Workday):
 
 ```bash
