@@ -156,7 +156,7 @@ class TestStackOneAdkTool:
 
     @pytest.mark.asyncio
     async def test_run_async_preserves_stackone_api_error(self):
-        from stackone_ai.models import StackOneAPIError
+        from stackone_ai import StackOneAPIError
 
         mock_tool = _make_mock_tool(name="workday_list_workers")
         mock_tool.execute.side_effect = StackOneAPIError(

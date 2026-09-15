@@ -12,7 +12,7 @@ from typing import Any
 
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types
-from stackone_ai.models import StackOneAPIError, StackOneTool
+from stackone_ai import StackOneAPIError, StackOneTool
 
 logger = logging.getLogger(__name__)
 

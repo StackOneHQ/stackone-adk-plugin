@@ -2,7 +2,7 @@
 
 Default mode — registers a small, scoped set of Workday tools with the agent.
 Workday's full catalog (hundreds of actions) exceeds Gemini's `tools` payload
-cap; for unscoped catalogs use ``search_and_execute_agent.py`` instead.
+cap.
 
 Setup:
     export STACKONE_API_KEY="..."
@@ -47,7 +47,6 @@ async def main() -> None:
 
     # Default mode sends every tool's schema to the LLM. Workday has hundreds
     # of actions, so we scope to a handful to stay under Gemini's payload cap.
-    # For larger catalogs use search_and_execute_agent.py instead.
     plugin = StackOnePlugin(
         account_id=account_id,
         providers=["workday"],
