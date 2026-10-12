@@ -2,7 +2,7 @@
 
 Google ADK plugin that gives your agents [StackOne](https://stackone.com)'s 540+ connectors and 33,000+ actions as native ADK tools.
 
-StackOne is integration infrastructure for AI agents, with connectors, governance, security and token optimization in one platform. This plugin loads the actions available to your StackOne account when the agent starts and registers them as ADK tools, so you don't write or maintain any tool definitions.
+StackOne is integration infrastructure for AI agents. Use this plugin when you're building an ADK agent that acts in your customers' applications as part of your product, or an agent for your own company's systems. It loads the actions available to your StackOne account when the agent starts and registers them as ADK tools, so you don't write or maintain any tool definitions.
 
 ## Installation
 
