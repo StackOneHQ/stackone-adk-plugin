@@ -120,7 +120,8 @@ class StackOnePlugin(BasePlugin):
         resolved_api_key = api_key if api_key is not None else os.getenv("STACKONE_API_KEY", "")
         if not resolved_api_key:
             raise ValueError(
-                "StackOne API key is required. Set the STACKONE_API_KEY environment variable or pass api_key=..."
+                "StackOne API key is required. Set the STACKONE_API_KEY environment "
+                "variable or pass api_key=..."
             )
         resolved_base_url = base_url or DEFAULT_BASE_URL
 
