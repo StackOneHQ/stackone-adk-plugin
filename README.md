@@ -1,8 +1,8 @@
 # stackone-adk
 
-Google ADK plugin for connecting agents to 200+ SaaS providers via [StackOne](https://stackone.com).
+Google ADK plugin that gives your agents [StackOne](https://stackone.com)'s connectors and actions as native ADK tools.
 
-StackOne provides a unified API gateway for HRIS, ATS, CRM, scheduling, and more. This plugin dynamically discovers available tools from StackOne's API and exposes them as native Google ADK tools, no hardcoded tool definitions needed.
+StackOne connects employees' AI to any application, then optimizes and secures the actions it takes. It has pre-built connectors and actions for hundreds of applications across HR, Sales, IT, finance and more. This plugin loads the actions available to your StackOne account when the agent starts and registers them as ADK tools, so you don't write or maintain any tool definitions.
 
 ## Installation
 
@@ -164,7 +164,7 @@ agent = Agent(
 
 **When to use:** more than ~5 connected providers, or whenever the full tool list would dominate the model's context window.
 
-**How it works:** the LLM calls `tool_search("...")` to get a short list of candidate tools (name, description, parameter schema), then calls `tool_execute(tool_name, parameters)` with the chosen one. Both calls round-trip to StackOne's AI Integration Gateway via the SDK.
+**How it works:** the LLM calls `tool_search("...")` to get a short list of candidate tools (name, description, parameter schema), then calls `tool_execute(tool_name, parameters)` with the chosen one. Both calls go to StackOne through the SDK.
 
 **Notes:**
 - `providers` and `actions` filters are ignored in this mode (scoping happens via `account_ids` and the LLM's search query). A warning is logged if you pass them.
