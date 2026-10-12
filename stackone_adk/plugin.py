@@ -1,7 +1,7 @@
 """StackOne Plugin for Google ADK.
 
-Provides dynamic tool discovery from 200+ SaaS providers via StackOne's
-AI Integration Gateway, with lifecycle hooks for monitoring and customization.
+Loads the actions available to a StackOne account and registers them as
+native ADK tools.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def _discover_account_ids(
 
 
 class StackOnePlugin(BasePlugin):
-    """Plugin for connecting ADK agents to 200+ SaaS providers via StackOne.
+    """Plugin that gives ADK agents StackOne's connectors and actions as tools.
 
     Dynamically discovers tools from StackOne's MCP endpoint and exposes them
     as native ADK tools. All authentication, RPC execution, and HTTP calls
