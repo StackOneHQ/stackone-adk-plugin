@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "stackone-adk"
 version = "0.2.1"
-description = "Google ADK plugin that gives agents StackOne's connectors and actions as native ADK tools"
+description = "Google ADK plugin that gives agents StackOne's 540+ connectors and 33,000+ actions as native ADK tools"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
