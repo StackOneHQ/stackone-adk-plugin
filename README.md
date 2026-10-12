@@ -2,7 +2,7 @@
 
 Google ADK plugin that gives your agents [StackOne](https://stackone.com)'s 540+ connectors and 33,000+ actions as native ADK tools.
 
-StackOne is integration infrastructure for AI agents. Use this plugin when you're building an ADK agent that acts in your customers' applications as part of your product, or an agent for your own company's systems. It loads the actions available to your StackOne account when the agent starts and registers them as ADK tools, so you don't write or maintain any tool definitions.
+StackOne is integration infrastructure for AI agents. Use this plugin when you're building an ADK agent that acts in your customers' applications as part of your product, or an agent for your own company's systems. When you create the plugin, it loads the actions available to your StackOne account and registers them as ADK tools, so you don't write or maintain any tool definitions.
 
 ## Installation
 
@@ -164,7 +164,7 @@ agent = Agent(
 
 **When to use:** more than ~5 connected providers, or whenever the full tool list would dominate the model's context window.
 
-**How it works:** the LLM calls `tool_search("...")` to get a short list of candidate tools (name, description, parameter schema), then calls `tool_execute(tool_name, parameters)` with the chosen one. Both calls go to StackOne through the SDK.
+**How it works:** the LLM calls `tool_search("...")` to get a short list of candidate tools (name, description, parameter schema), then calls `tool_execute(tool_name, parameters)` with the chosen one. `tool_execute` runs the action through StackOne. `tool_search` uses StackOne's semantic search or a local search, depending on the `search` method (see the notes below).
 
 **Notes:**
 - `providers` and `actions` filters are ignored in this mode (scoping happens via `account_ids` and the LLM's search query). A warning is logged if you pass them.
