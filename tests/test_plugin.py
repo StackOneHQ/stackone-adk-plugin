@@ -103,7 +103,7 @@ class TestStackOnePluginInit:
 
         mock_discover.assert_called_once()
         mock_toolset.fetch_tools.assert_called_once_with(
-            account_ids=["acct-auto"], providers=None, actions=None
+            account_ids=["acct-auto"], providers=None, actions=None, feedback=True
         )
         assert len(plugin.get_tools()) == 2
         assert plugin.name == "stackone_plugin"
@@ -156,6 +156,7 @@ class TestStackOnePluginInit:
             account_ids=["acct-1", "acct-2"],
             providers=["calendly"],
             actions=["*_list_*"],
+            feedback=True,
         )
 
     @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
@@ -261,7 +262,7 @@ class TestStackOnePluginSearchAndExecute:
 
         kwargs = mock_toolset_cls.call_args.kwargs
         assert kwargs["search"] == {"method": "auto"}
-        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-1"])
+        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-1"], feedback=True)
         mock_toolset.fetch_tools.assert_not_called()
         tools = plugin.get_tools()
         assert len(tools) == 2
@@ -288,6 +289,32 @@ class TestStackOnePluginSearchAndExecute:
         assert kwargs["execute"] == {"account_ids": ["acct-explicit"], "timeout": 120}
         assert kwargs["timeout"] == 200
 
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_search_mode_can_disable_feedback(self, mock_toolset_cls, mock_discover):
+        mock_toolset = MagicMock()
+        mock_toolset._build_tools.return_value = _make_mock_tools(2)
+        mock_toolset_cls.return_value = mock_toolset
+
+        StackOnePlugin(api_key="sk-test", mode="search_and_execute", feedback=False)
+
+        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-1"], feedback=False)
+
+
+class TestStackOnePluginFeedback:
+    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
+    @patch(PLUGIN_PATCH_TOOLSET)
+    def test_default_mode_can_disable_feedback(self, mock_toolset_cls, mock_discover):
+        mock_toolset = MagicMock()
+        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
+        mock_toolset_cls.return_value = mock_toolset
+
+        StackOnePlugin(api_key="sk-test", feedback=False)
+
+        mock_toolset.fetch_tools.assert_called_once_with(
+            account_ids=["acct-auto"], providers=None, actions=None, feedback=False
+        )
+
     @patch(PLUGIN_PATCH_DISCOVER)
     @patch(PLUGIN_PATCH_TOOLSET)
     def test_search_mode_with_explicit_account_ids(self, mock_toolset_cls, mock_discover):
@@ -302,7 +329,9 @@ class TestStackOnePluginSearchAndExecute:
         )
 
         mock_discover.assert_not_called()
-        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-a", "acct-b"])
+        mock_toolset._build_tools.assert_called_once_with(
+            account_ids=["acct-a", "acct-b"], feedback=True
+        )
 
     @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
     @patch(PLUGIN_PATCH_TOOLSET)
