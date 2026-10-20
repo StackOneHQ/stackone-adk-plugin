@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1](https://github.com/StackOneHQ/stackone-adk-plugin/compare/v0.2.0...v0.2.1) (2026-10-20)
+
+
+### Dependencies
+
+* cap `stackone-ai[mcp]` below 3.0.0, so new installs don't resolve the SDK v3 release, which removes `SearchConfig` and `SearchMode` ([#27](https://github.com/StackOneHQ/stackone-adk-plugin/pull/27))
+
+
+### Documentation
+
+* update the plugin description to current StackOne positioning ([#28](https://github.com/StackOneHQ/stackone-adk-plugin/pull/28))
+
 ## [0.2.0](https://github.com/StackOneHQ/stackone-adk-plugin/compare/stackone-adk-v0.1.0...stackone-adk-v0.2.0) (2026-05-05)
 
 
