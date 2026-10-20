@@ -1,6 +1,7 @@
 """Workday agent using StackOne search-and-execute mode with Google ADK.
 
-The plugin exposes only ``tool_search`` and ``tool_execute``; the agent
+The plugin exposes ``stackone_search_actions`` and ``stackone_execute_action``
+(with ``stackone_list_accounts``) across every account in scope; the agent
 discovers and invokes Workday actions on demand. Use this when many SaaS
 accounts are linked and the full tool catalog would dominate the model's
 context window.
@@ -43,12 +44,11 @@ def _print_tool_call(name: str, args: dict) -> None:
 
 
 def _print_tool_response(name: str, response: dict) -> None:
-    if name == "tool_search":
-        tools = response.get("tools", [])
-        total = response.get("total", len(tools))
-        print(f"  ← tool_search: total={total}")
-        for t in tools:
-            print(f"      • {t.get('name')}")
+    if name == "stackone_search_actions":
+        actions = response.get("actions", [])
+        print(f"  ← {name}: {len(actions)} action(s)")
+        for action in actions:
+            print(f"      • {action.get('action_id')}")
         return
     summary = str(response)
     if len(summary) > 400:
@@ -65,12 +65,7 @@ async def main() -> None:
     if not os.getenv("GOOGLE_API_KEY"):
         sys.exit("Set GOOGLE_API_KEY to run this example.")
 
-    plugin = StackOnePlugin(
-        mode="search_and_execute",
-        account_ids=[account_id],
-        search={"method": "auto", "top_k": 10},
-        execute={"account_ids": [account_id]},
-    )
+    plugin = StackOnePlugin(mode="search_and_execute", account_ids=[account_id])
 
     tools = plugin.get_tools()
     print(f"Registered {len(tools)} meta tool(s): {[t.name for t in tools]}\n")
@@ -81,11 +76,11 @@ async def main() -> None:
         description="StackOne search-and-execute assistant, discovers and invokes tools on demand.",
         instruction=(
             "You are an assistant powered by StackOne (e.g. Workday). To "
-            "answer the user's request, first call tool_search with a short "
-            "natural-language query to find the right action, then call "
-            "tool_execute with the chosen tool_name and parameters that match "
-            "the schema returned by tool_search. Keep answers concise and "
-            "reference real data."
+            "answer the user's request, first call stackone_search_actions with "
+            "a short natural-language query to find the right action, then call "
+            "stackone_execute_action with its action_id and arguments built from "
+            "the action's example_request and input_schema (nested under path, "
+            "query and body). Keep answers concise and reference real data."
         ),
         tools=tools,
     )

@@ -2,9 +2,11 @@
 
 Google ADK plugin that gives your agents [StackOne](https://stackone.com)'s 540+ connectors and 33,000+ actions as native ADK tools.
 
-StackOne is integration infrastructure for AI agents. Use this plugin when you're building an ADK agent that acts in your customers' applications as part of your product, or an agent for your own company's systems. When you create the plugin, it loads the actions available to your StackOne account and gives them to your agent as ADK tools: one tool per action by default, or two tools that search for and run actions on demand in `search_and_execute` mode. You don't write or maintain any tool definitions.
+StackOne is integration infrastructure for AI agents. Use this plugin when you're building an ADK agent that acts in your customers' applications as part of your product, or an agent for your own company's systems. When you create the plugin, it loads the actions available to your StackOne account and gives them to your agent as ADK tools: one tool per action by default, or StackOne's search and execute tools, which find and run actions on demand, in `search_and_execute` mode. You don't write or maintain any tool definitions.
 
 ## Installation
+
+Requires Python 3.11 or later.
 
 ```bash
 pip install stackone-adk
@@ -133,27 +135,23 @@ async with InMemoryRunner(app_name="stackone_app", agent=agent) as runner:
 |-----------|------|---------|-------------|
 | `api_key` | `str \| None` | `None` | StackOne API key. Falls back to `STACKONE_API_KEY` env var. |
 | `account_id` | `str \| None` | `None` | Default account ID for all tools. |
-| `base_url` | `str \| None` | `None` | API URL override (default: `https://api.stackone.com`). |
+| `base_url` | `str \| None` | `None` | API URL override. Falls back to `STACKONE_BASE_URL`, then `https://api.stackone.com`. |
 | `plugin_name` | `str` | `"stackone_plugin"` | Plugin identifier for ADK. |
 | `providers` | `list[str] \| None` | `None` | Filter by provider names. |
-| `actions` | `list[str] \| None` | `None` | Filter by action patterns (supports globs). |
+| `actions` | `list[str] \| None` | `None` | Filter by action patterns (supports globs). Ignored in search and execute mode. |
 | `account_ids` | `list[str] \| None` | `None` | Scope tools to specific account IDs. |
 | `mode` | `Literal["search_and_execute"] \| None` | `None` | Tool registration strategy. See [Search and Execute mode](#search-and-execute-mode). |
-| `search` | `SearchConfig \| None` | `None` | Search backend config. Only used when `mode="search_and_execute"`. |
-| `execute` | `ExecuteToolsConfig \| None` | `None` | Execution config (account scoping, timeout). Only used when `mode="search_and_execute"`. |
-| `timeout` | `float \| None` | `None` | Per-request timeout in seconds for tool execution. |
+| `execute` | `ExecuteToolsConfig \| None` | `None` | Execution config (account scoping, timeout), forwarded to `StackOneToolSet`. |
+| `timeout` | `float` | `180.0` | Per-request timeout in seconds for listing and executing tools. |
 
 ## Search and Execute Mode
 
-By default, `StackOnePlugin` registers every discovered tool with the agent — fine for one or two providers, but the LLM context balloons quickly when many SaaS accounts are connected. With `mode="search_and_execute"`, the plugin registers exactly **two meta tools** (`tool_search` and `tool_execute`) and lets the model discover and invoke real tools on demand:
+By default, `StackOnePlugin` registers every discovered tool with the agent — fine for one or two providers, but the LLM context balloons quickly when many SaaS accounts are connected. With `mode="search_and_execute"`, the plugin registers StackOne's **search and execute tools** and lets the model find and run actions on demand:
 
 ```python
 from stackone_adk import StackOnePlugin
 
-plugin = StackOnePlugin(
-    mode="search_and_execute",
-    search={"method": "auto", "top_k": 5},
-)
+plugin = StackOnePlugin(mode="search_and_execute")
 
 agent = Agent(
     model="gemini-3.1-pro-preview",
@@ -164,12 +162,15 @@ agent = Agent(
 
 **When to use:** more than ~5 connected providers, or whenever the full tool list would dominate the model's context window.
 
-**How it works:** the LLM calls `tool_search("...")` to get a short list of candidate tools (name, description, parameter schema), then calls `tool_execute(tool_name, parameters)` with the chosen one. `tool_execute` runs the action through StackOne. `tool_search` uses StackOne's semantic search or a local search, depending on the `search` method (see the notes below).
+**How it works:** StackOne serves three tools spanning every account in scope, however many there are:
+
+- `stackone_search_actions` takes a natural-language `query` and returns ranked actions, each with its `action_id`, `input_schema`, an `example_request` and the `available_accounts` it can run on.
+- `stackone_execute_action` runs one by `action_id`, with arguments nested under `path`, `query` and `body` as the `example_request` shows. When the action's connector is linked on more than one account, the model passes the chosen one as `stackone_account_id`.
+- `stackone_list_accounts` lists the accounts in scope, so the model can resolve an account name to its id.
 
 **Notes:**
-- `providers` and `actions` filters are ignored in this mode (scoping happens via `account_ids` and the LLM's search query). A warning is logged if you pass them.
-- Search defaults to `{"method": "auto"}` (semantic search with local BM25+TF-IDF fallback). Pass `search={"method": "semantic"}` or `search={"method": "local"}` to force one backend.
-- The connector list embedded in the meta tools' descriptions is captured at plugin construction time. If you link new accounts after the plugin starts, restart the agent to pick them up.
+- `actions` is ignored in this mode (the LLM's search query selects actions); a warning is logged if you pass it. `providers` and `account_ids` scope the accounts the tools span.
+- The connectors named in the tools' descriptions are captured at plugin construction time. If you link new accounts after the plugin starts, restart the agent to pick them up.
 
 See [`examples/search_and_execute_agent.py`](examples/search_and_execute_agent.py) for a complete runnable example.
 
@@ -239,7 +240,7 @@ See the [`examples/`](examples/) directory:
 | Example | Description |
 |---------|-------------|
 | [`workday_agent.py`](examples/workday_agent.py) | Default mode (registers all matching tools); demo uses `actions=[...]` to scope to 3 Workday actions |
-| [`search_and_execute_agent.py`](examples/search_and_execute_agent.py) | LLM-driven discovery via `mode="search_and_execute"`, registers 2 tools |
+| [`search_and_execute_agent.py`](examples/search_and_execute_agent.py) | LLM-driven discovery via `mode="search_and_execute"`, registers StackOne's search and execute tools |
 
 ## Development
 

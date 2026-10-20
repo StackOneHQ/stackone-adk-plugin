@@ -1,13 +1,11 @@
-from stackone_ai import ExecuteToolsConfig, SearchConfig, SearchMode
+from stackone_ai import ExecuteToolsConfig
 
 from stackone_adk.plugin import StackOnePlugin
 from stackone_adk.tools import StackOneAdkTool
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 __all__ = [
     "StackOnePlugin",
     "StackOneAdkTool",
-    "SearchConfig",
-    "SearchMode",
     "ExecuteToolsConfig",
 ]
