@@ -162,11 +162,11 @@ agent = Agent(
 
 **When to use:** more than ~5 connected providers, or whenever the full tool list would dominate the model's context window.
 
-**How it works:** StackOne serves three tools spanning every account in scope, however many there are:
+**How it works:** the plugin registers the same tools however many accounts are in scope (at most 50):
 
 - `stackone_search_actions` takes a natural-language `query` and returns ranked actions, each with its `action_id`, `input_schema`, an `example_request` and the `available_accounts` it can run on.
 - `stackone_execute_action` runs one by `action_id`, with arguments nested under `path`, `query` and `body` as the `example_request` shows. When the action's connector is linked on more than one account, the model passes the chosen one as `stackone_account_id`.
-- `stackone_list_accounts` lists the accounts in scope, so the model can resolve an account name to its id.
+- `stackone_list_accounts`, registered only when more than one account is in scope, lists them, so the model can resolve an account name to its id.
 
 **Notes:**
 - `actions` is ignored in this mode (the LLM's search query selects actions); a warning is logged if you pass it. `providers` and `account_ids` scope the accounts the tools span.

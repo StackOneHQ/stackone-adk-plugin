@@ -44,7 +44,7 @@ class StackOnePlugin(BasePlugin):
         mode: Tool registration strategy.
             ``None`` (default): one tool per action.
             ``"search_and_execute"``: ``stackone_search_actions`` and
-            ``stackone_execute_action`` (with ``stackone_list_accounts``),
+            ``stackone_execute_action`` (with ``stackone_list_accounts`` for several accounts),
             spanning every account in scope, so the LLM finds and runs actions on
             demand. Keeps the model context small when many accounts or
             connectors are linked.

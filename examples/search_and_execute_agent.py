@@ -1,7 +1,7 @@
 """Workday agent using StackOne search-and-execute mode with Google ADK.
 
 The plugin exposes ``stackone_search_actions`` and ``stackone_execute_action``
-(with ``stackone_list_accounts``) across every account in scope; the agent
+(with ``stackone_list_accounts`` when several accounts are in scope); the agent
 discovers and invokes Workday actions on demand. Use this when many SaaS
 accounts are linked and the full tool catalog would dominate the model's
 context window.

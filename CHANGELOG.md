@@ -9,7 +9,7 @@ Built on StackOne AI SDK 3.0, which lists and runs every tool over StackOne's MC
 * **python:** requires Python 3.11 or later, as `stackone-ai` 3.0 does.
 * **dependencies:** depends on `stackone-ai>=3.0.0,<4.0.0`. The `[mcp]` extra is gone: MCP is a core dependency of the SDK.
 * **plugin:** `search=` is removed, and with it the `SearchConfig` and `SearchMode` exports. Search runs on StackOne's server, so there is no backend to configure.
-* **plugin:** in `mode="search_and_execute"` the tools are StackOne's `stackone_search_actions`, `stackone_execute_action` and `stackone_list_accounts`, spanning every account in scope, in place of `tool_search` and `tool_execute`. Update prompts that name the old tools. `stackone_execute_action` takes `action_id` and arguments nested under `path`, `query` and `body`, plus `stackone_account_id` when the connector is linked on more than one account.
+* **plugin:** in `mode="search_and_execute"` the tools are StackOne's `stackone_search_actions` and `stackone_execute_action` (with `stackone_list_accounts` when more than one account is in scope), spanning every account in scope, at most 50, in place of `tool_search` and `tool_execute`. Update prompts that name the old tools. `stackone_execute_action` takes `action_id` and arguments nested under `path`, `query` and `body`, plus `stackone_account_id` when the connector is linked on more than one account.
 * **tools:** a tool returns the server's result as it wrote it, `{"isError": false, "result": ...}`, not the unwrapped payload.
 * **tools:** a tool's declared `required` list is the one StackOne served, not one derived from each property's `nullable` marker.
 
