@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -131,8 +132,16 @@ class TestRunAsync:
 
     @pytest.mark.asyncio
     async def test_runs_calls_concurrently(self):
+        # Each call waits until all three are inside execute() at once. Run one after another,
+        # the first would wait alone, the barrier would time out, and the calls would fail.
+        barrier = threading.Barrier(3, timeout=5)
+
+        def execute(_args: dict[str, Any]) -> dict[str, Any]:
+            barrier.wait()
+            return {"isError": False, "result": {}}
+
         tool = _executing_tool()
-        tool.execute.return_value = {"isError": False, "result": {}}
+        tool.execute.side_effect = execute
         adk_tool = StackOneAdkTool(tool)
 
         results = await asyncio.gather(
