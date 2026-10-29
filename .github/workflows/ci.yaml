@@ -18,6 +18,8 @@ permissions:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # A hung install or test fails in minutes rather than holding a runner for GitHub's 6-hour default.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -25,6 +27,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # No later step pushes, so the token is not left in the git config for them.
+          persist-credentials: false
 
       - name: Set up uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
