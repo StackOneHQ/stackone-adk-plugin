@@ -1,0 +1,141 @@
+name: Publish to PyPI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/release.yaml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish (for example, v0.3.0). Run from main."
+        required: true
+        type: string
+
+# Serialize attempts for the same version without interrupting an upload.
+concurrency:
+  group: pypi-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build release
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Manual runs can publish a tag that predates this workflow.
+          # PR runs use the event's immutable commit.
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify release commit is on main
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Check Git history before running any tooling from the selected source.
+          # Fully qualified refs prevent repository tags from impersonating main.
+          release_commit=$(git rev-parse --verify 'HEAD^{commit}')
+          main_commit=$(git rev-parse --verify 'refs/remotes/origin/main^{commit}')
+          git merge-base --is-ancestor "$release_commit" "$main_commit"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Validate package name and release version
+        id: package
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          uv --no-config run --no-project --python 3.12 python -I - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+          if project["name"] != "stackone-adk":
+              raise SystemExit("Only stackone-adk may be published by this workflow")
+          version = project["version"]
+          if os.environ["EVENT_NAME"] != "pull_request":
+              tag = os.environ["RELEASE_TAG"]
+              if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag):
+                  raise SystemExit("Release tag must have the form vMAJOR.MINOR.PATCH")
+              if tag != f"v{version}":
+                  raise SystemExit(f"Tag {tag} does not match package version {version}")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write(f"version={version}\n")
+          PY
+
+      - name: Install dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Lint, type check, and test release source
+        run: |
+          uv run ruff check .
+          uv run mypy stackone_adk
+          uv run pytest -v
+
+      - name: Build distributions
+        run: uv build --no-sources
+
+      - name: Verify wheel and source distribution installations
+        env:
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          for artifact in dist/*.whl dist/*.tar.gz; do
+            uv run --isolated --no-project --with "$artifact" python -I -c \
+              'import os; from importlib.metadata import version; from stackone_adk import StackOnePlugin; from stackone_ai import StackOneToolSet; assert version("stackone-adk") == os.environ["PACKAGE_VERSION"]; print("Installed stackone-adk", version("stackone-adk"), "with stackone-ai", version("stackone-ai"))'
+          done
+
+      - name: Upload tested distributions
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish tested distributions
+    needs: build
+    if: >-
+      github.repository == 'StackOneHQ/stackone-adk-plugin' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/stackone-adk/
+    permissions:
+      id-token: write
+    steps:
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: false
+
+      - name: Download tested distributions
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+
+      # PyPI exchanges this job's GitHub identity for a short-lived upload token.
+      # No repository checkout, dependency installation, or long-lived secret here.
+      - name: Publish with PyPI Trusted Publishing
+        run: uv publish --trusted-publishing always
