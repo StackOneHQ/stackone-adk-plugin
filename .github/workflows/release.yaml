@@ -1,9 +1,6 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - "v*"
   pull_request:
     branches:
       - main
@@ -35,10 +32,19 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Manual runs can publish a tag that predates this workflow.
-          # Push and PR runs use the event's immutable commit, not a moving tag.
+          # PR runs use the event's immutable commit.
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify release commit is on main
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Check Git history before running any tooling from the selected source.
+          # Fully qualified refs prevent repository tags from impersonating main.
+          release_commit=$(git rev-parse --verify 'HEAD^{commit}')
+          main_commit=$(git rev-parse --verify 'refs/remotes/origin/main^{commit}')
+          git merge-base --is-ancestor "$release_commit" "$main_commit"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
@@ -46,16 +52,15 @@ jobs:
           python-version: "3.12"
           enable-cache: false
 
-      - name: Validate release version and source
+      - name: Validate package name and release version
         id: package
         env:
           EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          uv run --no-project --python 3.12 python - <<'PY'
+          uv --no-config run --no-project --python 3.12 python -I - <<'PY'
           import os
           import re
-          import subprocess
           import tomllib
           from pathlib import Path
 
@@ -69,9 +74,6 @@ jobs:
                   raise SystemExit("Release tag must have the form vMAJOR.MINOR.PATCH")
               if tag != f"v{version}":
                   raise SystemExit(f"Tag {tag} does not match package version {version}")
-              subprocess.run(
-                  ["git", "merge-base", "--is-ancestor", "HEAD", "origin/main"], check=True
-              )
           with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
               output.write(f"version={version}\n")
           PY
@@ -112,8 +114,8 @@ jobs:
     needs: build
     if: >-
       github.repository == 'StackOneHQ/stackone-adk-plugin' &&
-      (github.event_name == 'push' ||
-       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

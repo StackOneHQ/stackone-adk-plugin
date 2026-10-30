@@ -1,6 +1,7 @@
 # Publishing stackone-adk
 
-The `Publish to PyPI` workflow tests and builds the selected release commit, then
+Run `Publish to PyPI` manually from `main` with an existing release tag. It tests
+and builds the selected release commit, then
 uploads those tested distributions from a separate job. It authenticates through
 PyPI Trusted Publishing; do not add a `PYPI_API_TOKEN` or `UV_PUBLISH_TOKEN` secret.
 Pull requests changing the workflow run the build checks without publishing.
@@ -18,9 +19,13 @@ add a GitHub Trusted Publisher, or reuse the existing one if these fields match:
 | Environment | `pypi` |
 
 The workflow filename is the filename alone, not its `.github/workflows/` path.
-In GitHub, create the `pypi` environment under **Settings → Environments**. Allow
-deployments from branch `main` and tags matching `v*`. The branch rule permits
-manual recovery runs; the tag rule permits ordinary releases.
+In GitHub, create the `pypi` environment under **Settings → Environments**. Choose
+**Selected branches and tags** and allow only the **branch** `main`. Remove any
+tag rules, including `v*`. Keep pull-request approval required on `main`.
+
+This environment restriction is required: it ensures publishing uses the reviewed
+workflow on `main`. A tag can contain a different workflow, so allowing release
+tags into the environment would let that workflow bypass the source checks.
 
 The PyPI configuration is separate from the GitHub environment. Both must match
 before an upload can succeed. See the official
@@ -31,14 +36,16 @@ before an upload can succeed. See the official
 1. Merge the version change, updated lockfile, and release changes into `main`.
 2. Tag the intended commit with `v` followed by the exact package version and push
    that tag. The workflow accepts stable `vMAJOR.MINOR.PATCH` tags only.
-3. Watch **Actions → Publish to PyPI**. The workflow rejects a tag that disagrees
-   with `pyproject.toml` or a commit that is not part of `main`'s history.
-4. Confirm both distribution files appear on the version-specific PyPI page.
-5. Check installation and imports in a fresh environment, as shown below.
+3. Open **Actions → Publish to PyPI → Run workflow**. Select branch `main` and
+   enter the tag. Pushing a tag alone does not publish.
+4. Watch the run. It checks the selected commit against the explicit remote main
+   branch before running package tooling, then reads metadata with isolated
+   Python. It rejects unmerged source or a tag that disagrees with `pyproject.toml`.
+5. Confirm both distribution files appear on the version-specific PyPI page.
+6. Check installation and imports in a fresh environment, as shown below.
 
-The workflow must exist at the tagged commit for a tag push to trigger it. For
-older commits or a recovery run, use the manual path instead. Never move an
-existing release tag or change the contents of an already published version.
+The selected tag can predate the workflow because the workflow itself runs from
+`main`. Never move an existing release tag or change an already published version.
 
 ## First release from the existing commit
 
