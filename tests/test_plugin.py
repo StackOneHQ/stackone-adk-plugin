@@ -2,321 +2,145 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
+from stackone_ai import StackOneAPIError, ToolsetConfigError
 
-from stackone_adk.plugin import StackOnePlugin, _discover_account_ids
+from stackone_adk.plugin import StackOnePlugin
 from stackone_adk.tools import StackOneAdkTool
 
+PATCH_TOOLSET = "stackone_adk.plugin.StackOneToolSet"
 
-def _make_mock_stackone_tool(name: str = "test_tool", description: str = "A test tool") -> MagicMock:
-    """Create a mock StackOneTool."""
+
+def _mock_tool(name: str) -> MagicMock:
     tool = MagicMock()
     tool.name = name
-    tool.description = description
-    tool.parameters = MagicMock()
-    tool.parameters.properties = {"field": {"type": "string", "nullable": True}}
+    tool.description = f"{name} description"
     return tool
 
 
-def _make_mock_tools(count: int = 3) -> MagicMock:
-    """Create a mock Tools collection that is iterable."""
-    tools_list = [_make_mock_stackone_tool(name=f"tool_{i}", description=f"Tool {i}") for i in range(count)]
-    mock_tools = MagicMock()
-    mock_tools.__iter__ = MagicMock(return_value=iter(tools_list))
-    return mock_tools
+def _toolset_serving(*names: str) -> MagicMock:
+    toolset = MagicMock()
+    toolset.fetch_tools.return_value = [_mock_tool(name) for name in names]
+    return toolset
 
 
-# Patch both StackOneToolSet and _discover_account_ids for all init tests
-PLUGIN_PATCH_TOOLSET = "stackone_adk.plugin.StackOneToolSet"
-PLUGIN_PATCH_DISCOVER = "stackone_adk.plugin._discover_account_ids"
+class TestToolsetConstruction:
+    @patch(PATCH_TOOLSET)
+    def test_default_mode_lists_individual_tools(self, toolset_cls):
+        toolset_cls.return_value = _toolset_serving()
 
+        StackOnePlugin(api_key="sk-test", account_id="acct-1", base_url="https://custom.api.com")
 
-class TestDiscoverAccountIds:
-    @patch("stackone_adk.plugin.httpx")
-    def test_returns_all_account_ids(self, mock_httpx):
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = [
-                {"id": "acct-1", "provider": "calendly"},
-                {"id": "acct-2", "provider": "hibob"},
-            ]
-        mock_httpx.get.return_value = mock_resp
-
-        result = _discover_account_ids("sk-test", "https://api.stackone.com")
-        assert result == ["acct-1", "acct-2"]
-
-    @patch("stackone_adk.plugin.httpx")
-    def test_filters_by_provider(self, mock_httpx):
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = [
-                {"id": "acct-1", "provider": "calendly"},
-                {"id": "acct-2", "provider": "hibob"},
-                {"id": "acct-3", "provider": "calendly"},
-            ]
-        mock_httpx.get.return_value = mock_resp
-
-        result = _discover_account_ids("sk-test", "https://api.stackone.com", providers=["calendly"])
-        assert result == ["acct-1", "acct-3"]
-
-    @patch("stackone_adk.plugin.httpx")
-    def test_provider_filter_case_insensitive(self, mock_httpx):
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = [{"id": "acct-1", "provider": "Calendly"}]
-        mock_httpx.get.return_value = mock_resp
-
-        result = _discover_account_ids("sk-test", "https://api.stackone.com", providers=["CALENDLY"])
-        assert result == ["acct-1"]
-
-    @patch("stackone_adk.plugin.httpx")
-    def test_skips_accounts_without_id(self, mock_httpx):
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = [
-                {"id": "acct-1", "provider": "calendly"},
-                {"provider": "hibob"},
-                {"id": "", "provider": "bamboohr"},
-            ]
-        mock_httpx.get.return_value = mock_resp
-
-        result = _discover_account_ids("sk-test", "https://api.stackone.com")
-        assert result == ["acct-1"]
-
-    @patch("stackone_adk.plugin.httpx")
-    def test_empty_accounts(self, mock_httpx):
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = []
-        mock_httpx.get.return_value = mock_resp
-
-        result = _discover_account_ids("sk-test", "https://api.stackone.com")
-        assert result == []
-
-
-class TestStackOnePluginInit:
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_default_init_auto_discovers(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(2)
-        mock_toolset_cls.return_value = mock_toolset
-
-        plugin = StackOnePlugin(api_key="sk-test")
-
-        mock_discover.assert_called_once()
-        mock_toolset.fetch_tools.assert_called_once_with(
-            account_ids=["acct-auto"], providers=None, actions=None
-        )
-        assert len(plugin.get_tools()) == 2
-        assert plugin.name == "stackone_plugin"
-
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_custom_plugin_name(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
-        mock_toolset_cls.return_value = mock_toolset
-
-        plugin = StackOnePlugin(api_key="sk-test", plugin_name="my_plugin")
-        assert plugin.name == "my_plugin"
-
-    @patch(PLUGIN_PATCH_DISCOVER)
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_skips_discovery_when_account_id_provided(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
-        mock_toolset_cls.return_value = mock_toolset
-
-        StackOnePlugin(api_key="sk-test", account_id="acct-123", base_url="https://custom.api.com")
-
-        mock_discover.assert_not_called()
-        mock_toolset_cls.assert_called_once_with(
+        toolset_cls.assert_called_once_with(
             api_key="sk-test",
-            account_id="acct-123",
+            account_id="acct-1",
             base_url="https://custom.api.com",
-            search=None,
             execute=None,
             timeout=180.0,
+            tool_mode=None,
         )
 
-    @patch(PLUGIN_PATCH_DISCOVER)
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_skips_discovery_when_account_ids_provided(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
-        mock_toolset_cls.return_value = mock_toolset
-
-        StackOnePlugin(
-            api_key="sk-test",
-            providers=["calendly"],
-            actions=["*_list_*"],
-            account_ids=["acct-1", "acct-2"],
-        )
-
-        mock_discover.assert_not_called()
-        mock_toolset.fetch_tools.assert_called_once_with(
-            account_ids=["acct-1", "acct-2"],
-            providers=["calendly"],
-            actions=["*_list_*"],
-        )
-
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_passes_providers_to_discovery(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
-        mock_toolset_cls.return_value = mock_toolset
-
-        StackOnePlugin(api_key="sk-test", providers=["calendly"])
-
-        mock_discover.assert_called_once_with(
-            "sk-test", "https://api.stackone.com", ["calendly"], timeout=180.0
-        )
-
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_tools_converted_to_adk_tools(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(3)
-        mock_toolset_cls.return_value = mock_toolset
-
-        plugin = StackOnePlugin(api_key="sk-test")
-        tools = plugin.get_tools()
-
-        assert len(tools) == 3
-        for tool in tools:
-            assert isinstance(tool, StackOneAdkTool)
-
-    @patch("stackone_adk.plugin.StackOneAdkTool")
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_failed_conversion_skipped(self, mock_toolset_cls, mock_discover, mock_adk_tool_cls):
-        mock_toolset = MagicMock()
-
-        good_tool = _make_mock_stackone_tool(name="good_tool")
-        bad_tool = _make_mock_stackone_tool(name="bad_tool")
-
-        tools_list = [good_tool, bad_tool]
-        mock_tools = MagicMock()
-        mock_tools.__iter__ = MagicMock(return_value=iter(tools_list))
-        mock_toolset.fetch_tools.return_value = mock_tools
-        mock_toolset_cls.return_value = mock_toolset
-
-        # Make StackOneAdkTool succeed for good_tool, raise for bad_tool
-        good_adk_tool = MagicMock()
-        good_adk_tool.name = "good_tool"
-        mock_adk_tool_cls.side_effect = [good_adk_tool, ValueError("broken")]
-
-        plugin = StackOnePlugin(api_key="sk-test")
-        assert len(plugin.get_tools()) == 1
-        assert plugin.get_tools()[0].name == "good_tool"
-
-    def test_raises_on_missing_api_key(self):
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError, match="StackOne API key is required"):
-                StackOnePlugin()
-
-    @patch.dict("os.environ", {"STACKONE_API_KEY": "env-key"}, clear=True)
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_resolves_api_key_from_env(self, mock_toolset_cls, mock_discover):
-        mock_toolset_cls.return_value.fetch_tools.return_value = _make_mock_tools(0)
-
-        StackOnePlugin()
-
-        assert mock_discover.call_args.args[0] == "env-key"
-        assert mock_toolset_cls.call_args.kwargs["api_key"] == "env-key"
-        assert mock_toolset_cls.call_args.kwargs["base_url"] == "https://api.stackone.com"
-
-    @patch(PLUGIN_PATCH_DISCOVER, side_effect=RuntimeError("connection refused"))
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_graceful_discovery_failure(self, mock_toolset_cls, mock_discover):
-        plugin = StackOnePlugin(api_key="sk-test")
-        assert plugin.get_tools() == []
-
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-auto"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_default_mode_does_not_pass_search(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset.fetch_tools.return_value = _make_mock_tools(0)
-        mock_toolset_cls.return_value = mock_toolset
-
-        StackOnePlugin(api_key="sk-test")
-
-        kwargs = mock_toolset_cls.call_args.kwargs
-        assert kwargs.get("search") is None
-        assert kwargs.get("execute") is None
-        assert kwargs.get("timeout") == 180.0
-        mock_toolset._build_tools.assert_not_called()
-        mock_toolset.fetch_tools.assert_called_once()
-
-
-class TestStackOnePluginSearchAndExecute:
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_search_mode_uses_build_tools(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset._build_tools.return_value = _make_mock_tools(2)
-        mock_toolset_cls.return_value = mock_toolset
-
-        plugin = StackOnePlugin(api_key="sk-test", mode="search_and_execute")
-
-        kwargs = mock_toolset_cls.call_args.kwargs
-        assert kwargs["search"] == {"method": "auto"}
-        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-1"])
-        mock_toolset.fetch_tools.assert_not_called()
-        tools = plugin.get_tools()
-        assert len(tools) == 2
-        for tool in tools:
-            assert isinstance(tool, StackOneAdkTool)
-
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_search_mode_threads_through_config(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset._build_tools.return_value = _make_mock_tools(2)
-        mock_toolset_cls.return_value = mock_toolset
+    @patch(PATCH_TOOLSET)
+    def test_search_and_execute_mode_asks_for_the_search_execute_tool_mode(self, toolset_cls):
+        toolset_cls.return_value = _toolset_serving()
 
         StackOnePlugin(
             api_key="sk-test",
             mode="search_and_execute",
-            search={"method": "semantic", "top_k": 5},
-            execute={"account_ids": ["acct-explicit"], "timeout": 120},
+            execute={"account_ids": ["acct-1"]},
             timeout=200,
         )
 
-        kwargs = mock_toolset_cls.call_args.kwargs
-        assert kwargs["search"] == {"method": "semantic", "top_k": 5}
-        assert kwargs["execute"] == {"account_ids": ["acct-explicit"], "timeout": 120}
+        kwargs = toolset_cls.call_args.kwargs
+        assert kwargs["tool_mode"] == "search_execute"
+        assert kwargs["execute"] == {"account_ids": ["acct-1"]}
         assert kwargs["timeout"] == 200
 
-    @patch(PLUGIN_PATCH_DISCOVER)
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_search_mode_with_explicit_account_ids(self, mock_toolset_cls, mock_discover):
-        mock_toolset = MagicMock()
-        mock_toolset._build_tools.return_value = _make_mock_tools(2)
-        mock_toolset_cls.return_value = mock_toolset
+    @patch.dict("os.environ", {"STACKONE_API_KEY": "env-key"}, clear=True)
+    @patch(PATCH_TOOLSET)
+    def test_resolves_the_api_key_from_the_environment(self, toolset_cls):
+        toolset_cls.return_value = _toolset_serving()
+
+        StackOnePlugin()
+
+        assert toolset_cls.call_args.kwargs["api_key"] == "env-key"
+
+    def test_raises_without_an_api_key(self):
+        with patch.dict("os.environ", {}, clear=True), pytest.raises(ValueError, match="API key is required"):
+            StackOnePlugin()
+
+
+class TestToolLoading:
+    @patch(PATCH_TOOLSET)
+    def test_passes_the_filters_to_fetch_tools(self, toolset_cls):
+        toolset = toolset_cls.return_value = _toolset_serving()
 
         StackOnePlugin(
             api_key="sk-test",
-            mode="search_and_execute",
-            account_ids=["acct-a", "acct-b"],
+            providers=["calendly"],
+            actions=["*_list_*"],
+            account_ids=["acct-1", "acct-2"],
         )
 
-        mock_discover.assert_not_called()
-        mock_toolset._build_tools.assert_called_once_with(account_ids=["acct-a", "acct-b"])
+        toolset.fetch_tools.assert_called_once_with(
+            account_ids=["acct-1", "acct-2"], providers=["calendly"], actions=["*_list_*"]
+        )
 
-    @patch(PLUGIN_PATCH_DISCOVER, return_value=["acct-1"])
-    @patch(PLUGIN_PATCH_TOOLSET)
-    def test_search_mode_warns_on_provider_filter(self, mock_toolset_cls, mock_discover, caplog):
-        import logging
+    @patch(PATCH_TOOLSET)
+    def test_wraps_every_tool_as_an_adk_tool(self, toolset_cls):
+        toolset_cls.return_value = _toolset_serving("stackone_search_actions", "stackone_execute_action")
 
-        mock_toolset = MagicMock()
-        mock_toolset._build_tools.return_value = _make_mock_tools(2)
-        mock_toolset_cls.return_value = mock_toolset
+        tools = StackOnePlugin(api_key="sk-test", mode="search_and_execute").get_tools()
+
+        assert [tool.name for tool in tools] == ["stackone_search_actions", "stackone_execute_action"]
+        assert all(isinstance(tool, StackOneAdkTool) for tool in tools)
+
+    @patch(PATCH_TOOLSET)
+    def test_search_and_execute_mode_ignores_actions_with_a_warning(self, toolset_cls, caplog):
+        toolset = toolset_cls.return_value = _toolset_serving()
 
         with caplog.at_level(logging.WARNING, logger="stackone_adk.plugin"):
             StackOnePlugin(
-                api_key="sk-test",
-                mode="search_and_execute",
-                providers=["calendly"],
+                api_key="sk-test", mode="search_and_execute", providers=["calendly"], actions=["*_list_*"]
             )
-        assert any("ignored in search_and_execute" in rec.message for rec in caplog.records)
+
+        toolset.fetch_tools.assert_called_once_with(account_ids=None, providers=["calendly"], actions=None)
+        assert any("`actions` is ignored" in record.message for record in caplog.records)
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            ToolsetConfigError("None of this API key's 2 active account(s) are shared"),
+            StackOneAPIError("Unauthorized", 401, None),
+        ],
+    )
+    @patch(PATCH_TOOLSET)
+    def test_registers_no_tools_with_a_warning_when_loading_fails(self, toolset_cls, error, caplog):
+        toolset_cls.return_value.fetch_tools.side_effect = error
+
+        with caplog.at_level(logging.WARNING, logger="stackone_adk.plugin"):
+            plugin = StackOnePlugin(api_key="sk-test")
+
+        assert plugin.get_tools() == []
+        assert any("Could not load StackOne tools" in record.message for record in caplog.records)
+
+    @patch("stackone_adk.plugin.StackOneAdkTool")
+    @patch(PATCH_TOOLSET)
+    def test_skips_a_tool_that_fails_to_convert(self, toolset_cls, adk_tool_cls):
+        toolset_cls.return_value = _toolset_serving("good_tool", "bad_tool")
+        good = MagicMock()
+        good.name = "good_tool"
+        adk_tool_cls.side_effect = [good, ValueError("broken")]
+
+        tools = StackOnePlugin(api_key="sk-test").get_tools()
+
+        assert tools == [good]
+
+    @patch(PATCH_TOOLSET)
+    def test_custom_plugin_name(self, toolset_cls):
+        toolset_cls.return_value = _toolset_serving()
+
+        assert StackOnePlugin(api_key="sk-test", plugin_name="my_plugin").name == "my_plugin"

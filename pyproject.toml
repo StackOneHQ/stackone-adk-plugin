@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "stackone-adk"
-version = "0.2.1"
+version = "0.3.0"
 description = "Google ADK plugin that gives agents StackOne's 540+ connectors and 33,000+ actions as native ADK tools"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "StackOne", email = "support@stackone.com"},
@@ -18,7 +18,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -26,7 +25,7 @@ classifiers = [
 
 dependencies = [
     "google-adk>=1.31.1",
-    "stackone-ai[mcp]>=2.8.0,<3.0.0",
+    "stackone-ai>=3.0.0,<4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -47,13 +46,16 @@ packages = ["stackone_adk"]
 
 [tool.ruff]
 line-length = 110
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "C4", "UP"]
 
+# python_version is deliberately unset so mypy targets the running interpreter.
+# Pinning it to 3.10 made mypy parse dependency stubs with 3.10 grammar while the
+# environment could hold 3.12-only packages (numpy >=2.5 uses `type` statements),
+# which fails on a syntax error. The CI matrix covers 3.11-3.13 instead.
 [tool.mypy]
-python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

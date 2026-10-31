@@ -1,7 +1,7 @@
 """StackOne tool adapter for Google ADK.
 
-Converts StackOne's dynamically-discovered tools into ADK-compatible BaseTool instances.
-Handles JSON Schema to FunctionDeclaration conversion and sync-to-async bridging.
+Converts the tools StackOne serves into ADK-compatible BaseTool instances.
+Handles the JSON Schema declaration and sync-to-async bridging.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any
 
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types
-from stackone_ai.models import StackOneAPIError, StackOneTool
+from stackone_ai import StackOneAPIError, StackOneTool
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 class StackOneAdkTool(BaseTool):
     """Adapter that wraps a StackOneTool as an ADK BaseTool.
 
-    Converts StackOne's JSON Schema parameters to ADK FunctionDeclarations
-    and bridges the synchronous execute() method to async run_async().
+    Declares the tool with the JSON Schema StackOne served and bridges the
+    synchronous execute() method to async run_async().
     """
 
     def __init__(self, stackone_tool: StackOneTool) -> None:
@@ -32,27 +32,19 @@ class StackOneAdkTool(BaseTool):
         self._stackone_tool = stackone_tool
 
     def _get_declaration(self) -> types.FunctionDeclaration:
-        """Convert StackOne tool parameters to an ADK FunctionDeclaration.
+        """Declare the tool with its served JSON Schema.
 
-        Uses ADK's native ``parameters_json_schema`` which accepts raw
-        JSON Schema dicts directly, matching how ADK's own McpTool works.
+        Uses ADK's native ``parameters_json_schema``, which accepts a raw JSON
+        Schema dict, as ADK's own McpTool does. The schema is the SDK's OpenAI
+        form of it: the served properties and ``required`` list, verbatim.
         """
-        properties = self._stackone_tool.parameters.properties
+        schema = self._stackone_tool.to_openai_function()["function"]["parameters"]
 
-        if not properties:
+        if not schema.get("properties"):
             return types.FunctionDeclaration(
                 name=self.name,
                 description=self.description,
             )
-
-        schema = self._stackone_tool.parameters.model_dump()
-        required = [
-            name
-            for name, prop in properties.items()
-            if isinstance(prop, dict) and not prop.get("nullable", False)
-        ]
-        if required:
-            schema["required"] = required
 
         return types.FunctionDeclaration(
             name=self.name,
@@ -68,15 +60,12 @@ class StackOneAdkTool(BaseTool):
     ) -> dict[str, Any]:
         """Execute the StackOne tool asynchronously.
 
-        Runs the synchronous StackOneTool.execute() in a thread pool
-        to avoid blocking the event loop.
+        Runs the synchronous StackOneTool.execute() in a worker thread to avoid
+        blocking the event loop. Returns the server's result as it wrote it: for
+        an action, ``{"isError": False, "result": ..., ...}``.
         """
         try:
-            loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(None, self._stackone_tool.execute, args)
-            if isinstance(result, dict):
-                return result
-            return {"result": result}
+            return await asyncio.to_thread(self._stackone_tool.execute, args)
         except StackOneAPIError as exc:
             logger.exception("Tool %s API error", self.name)
             return {
