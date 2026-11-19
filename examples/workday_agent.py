@@ -62,7 +62,7 @@ async def main() -> None:
     print(f"Registered {len(tools)} Workday tool(s): {[t.name for t in tools]}\n")
 
     agent = Agent(
-        model="gemini-3.1-pro-preview",
+        model="gemini-4-hydrogen",
         name="stackone_agent",
         description="Provides access to connected SaaS data via StackOne.",
         instruction=(

@@ -71,7 +71,7 @@ async def main() -> None:
     print(f"Registered {len(tools)} meta tool(s): {[t.name for t in tools]}\n")
 
     agent = Agent(
-        model="gemini-3.1-pro-preview",
+        model="gemini-4-hydrogen",
         name="stackone_agent",
         description="StackOne search-and-execute assistant, discovers and invokes tools on demand.",
         instruction=(
