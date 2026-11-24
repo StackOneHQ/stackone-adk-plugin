@@ -54,7 +54,7 @@ def get_current_time(city: str) -> dict:
     return {"status": "success", "city": city, "time": "10:30 AM"}
 
 root_agent = Agent(
-    model="gemini-3.1-pro-preview",
+    model="gemini-4-hydrogen",
     name="root_agent",
     tools=[get_current_time],
 )
@@ -75,7 +75,7 @@ async def main():
     plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
     agent = Agent(
-        model="gemini-3.1-pro-preview",
+        model="gemini-4-hydrogen",
         name="stackone_agent",
         instruction="You are an HR assistant with access to tools via StackOne.",
         tools=plugin.get_tools(),  # instead of: tools=[get_current_time]
@@ -101,7 +101,7 @@ from google.adk.runners import InMemoryRunner
 plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 agent = Agent(
-    model="gemini-3.1-pro-preview",
+    model="gemini-4-hydrogen",
     name="stackone_agent",
     tools=plugin.get_tools(),
 )
@@ -120,7 +120,7 @@ from google.adk.runners import InMemoryRunner
 plugin = StackOnePlugin(account_id="STACKONE_ACCOUNT_ID")
 
 agent = Agent(
-    model="gemini-3.1-pro-preview",
+    model="gemini-4-hydrogen",
     name="stackone_agent",
     tools=plugin.get_tools(),
 )
@@ -154,7 +154,7 @@ from stackone_adk import StackOnePlugin
 plugin = StackOnePlugin(mode="search_and_execute")
 
 agent = Agent(
-    model="gemini-3.1-pro-preview",
+    model="gemini-4-hydrogen",
     name="multi_saas_agent",
     tools=plugin.get_tools(),
 )
